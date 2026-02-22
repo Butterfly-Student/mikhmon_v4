@@ -1,0 +1,105 @@
+{{template "web/templates/layout/base.html" .}}
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Log Header -->
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div
+                    class="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 shadow-inner">
+                    <i class="fa fa-file-text text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-black text-slate-800 tracking-tight">Hotspot Activity Log</h3>
+                    <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Real-time system events</p>
+                </div>
+            </div>
+
+            <button onclick="loadLog()"
+                class="group bg-white border border-slate-200 text-slate-600 hover:text-sky-600 hover:border-sky-200 px-6 py-3 rounded-2xl text-sm font-black transition-all flex items-center gap-2 shadow-sm active:scale-95">
+                <i class="fa fa-refresh group-hover:rotate-180 transition-transform duration-500"></i>
+                <span>Refresh Logs</span>
+            </button>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="sticky top-0 z-10">
+                    <tr class="bg-slate-50 border-b border-slate-100">
+                        <th class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Time
+                        </th>
+                        <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-48">
+                            Topics</th>
+                        <th class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Event
+                            Message</th>
+                    </tr>
+                </thead>
+                <tbody id="logBody" class="divide-y divide-slate-50 font-mono">
+                    <tr>
+                        <td colspan="3" class="px-8 py-24 text-center">
+                            <i class="fa fa-circle-notch fa-spin text-4xl text-slate-200 mb-4 block mx-auto"></i>
+                            <p class="text-xs font-black text-slate-300 uppercase tracking-widest">Retrieving logs from
+                                router...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="px-8 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">Logs are fetched
+                directly from MikroTik RouterOS buffer.</p>
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] text-slate-400 font-bold uppercase">System Status:</span>
+                <span
+                    class="px-2 py-0.5 bg-emerald-100 text-emerald-600 rounded text-[9px] font-black tracking-widest uppercase">Connected</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var session = "{{.Session}}";
+
+    function loadLog() {
+        // Temporary loading state
+        $('#logBody').html('<tr><td colspan="3" class="px-8 py-20 text-center"><i class="fa fa-spinner fa-spin text-2xl text-slate-300"></i></td></tr>');
+
+        $.get('/' + session + '/api/logs', function (data) {
+            var html = '';
+            if (!data || data.length === 0) {
+                html = '<tr><td colspan="3" class="px-8 py-20 text-center font-black text-slate-300 uppercase tracking-widest">No activity logs found</td></tr>';
+            } else {
+                data.forEach(function (l) {
+                    var topicClass = "text-slate-400";
+                    if ((l.topics || "").includes("error")) topicClass = "text-rose-500 font-black";
+                    if ((l.topics || "").includes("warning")) topicClass = "text-amber-500 font-black";
+                    if ((l.topics || "").includes("hotspot")) topicClass = "text-sky-500 font-black";
+
+                    html += `
+                    <tr class="hover:bg-slate-50/50 transition-colors">
+                        <td class="px-8 py-3 text-[11px] font-bold text-slate-400 whitespace-nowrap">${l.time}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-0.5 rounded text-[9px] uppercase tracking-tighter ${topicClass} bg-slate-100/50 ring-1 ring-slate-200/50">${l.topics || 'system'}</span>
+                        </td>
+                        <td class="px-8 py-3 text-xs text-slate-600 leading-relaxed font-medium capitalize-first">${l.message}</td>
+                    </tr>`;
+                });
+            }
+            $('#logBody').html(html);
+        }).fail(function () {
+            $('#logBody').html('<tr><td colspan="3" class="px-8 py-20 text-center text-rose-500 font-black uppercase tracking-widest">Error fetching logs</td></tr>');
+        });
+    }
+
+    $(document).ready(function () {
+        loadLog();
+    });
+</script>
+
+<style>
+    .capitalize-first::first-letter {
+        text-transform: uppercase;
+    }
+</style>
+{{end}}

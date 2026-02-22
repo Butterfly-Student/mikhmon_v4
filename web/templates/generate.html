@@ -1,0 +1,272 @@
+{{template "web/templates/layout/base.html" .}}
+{{define "content"}}
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- Generation Form -->
+    <div class="lg:col-span-7 space-y-6">
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-4">
+                <div
+                    class="w-12 h-12 rounded-2xl bg-sky-502 flex items-center justify-center text-sky-500 shadow-inner">
+                    <i class="fa fa-ticket text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-black text-slate-800 tracking-tight">Generate Vouchers</h3>
+                    <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Bulk create hotspot
+                        connections</p>
+                </div>
+            </div>
+
+            <div class="p-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-1.5">
+                        <label
+                            class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Quantity</label>
+                        <input type="number" id="g-qty" value="10" min="1" max="500"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all">
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">User
+                            Type</label>
+                        <select id="g-user"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all cursor-pointer">
+                            <option value="vc">Voucher Code (Same User/Pass)</option>
+                            <option value="up">Username & Password</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Character
+                            Type</label>
+                        <select id="g-char"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all cursor-pointer">
+                            <option value="num">Numeric Only</option>
+                            <option value="lower">Lowercase Only</option>
+                            <option value="upper">Uppercase Only</option>
+                            <option value="mix">Numeric + Lower</option>
+                            <option value="mix1">Numeric + Upper</option>
+                            <option value="mix2">Numeric + Mixed Case</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label
+                                class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Length</label>
+                            <input type="number" id="g-len" value="6" min="4" max="12"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label
+                                class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Prefix</label>
+                            <input type="text" id="g-prefix" placeholder="e.g. VC-"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all">
+                        </div>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label
+                            class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Profile</label>
+                        <select id="g-profile"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all cursor-pointer"></select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label
+                            class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Server</label>
+                        <select id="g-server"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all cursor-pointer"></select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Time
+                            Limit</label>
+                        <input type="text" id="g-timelimit" placeholder="e.g. 1h"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all">
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data
+                            Limit</label>
+                        <input type="text" id="g-datalimit" placeholder="e.g. 500m"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all">
+                    </div>
+                </div>
+
+                <div class="mt-6 space-y-1.5">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Comment</label>
+                    <input type="text" id="g-comment" placeholder="Identify this batch"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all">
+                </div>
+
+                <div class="mt-10">
+                    <button onclick="generate()"
+                        class="w-full py-4 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl text-base font-black shadow-xl shadow-sky-900/20 transition-all flex items-center justify-center gap-3 active:scale-[0.98]">
+                        <i class="fa fa-cog fa-spin" id="gen-spin" style="display:none;"></i>
+                        <i class="fa fa-ticket" id="gen-ico"></i>
+                        <span>Generate Vouchers Now</span>
+                    </button>
+                    <p class="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-4">MikrOps
+                        High Performance Engine</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Preview Sidebar -->
+    <div class="lg:col-span-5">
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden sticky top-6">
+            <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-4">
+                <div
+                    class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 shadow-inner">
+                    <i class="fa fa-print text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-black text-slate-800 tracking-tight">Print Options</h3>
+                    <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Ready to distribute</p>
+                </div>
+            </div>
+
+            <div class="p-8">
+                <!-- Placeholder -->
+                <div id="gen-placeholder" class="py-20 text-center space-y-4">
+                    <div
+                        class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-300">
+                        <i class="fa fa-arrow-left text-2xl animate-bounce-x"></i>
+                    </div>
+                    <p class="text-sm font-black text-slate-400 uppercase tracking-widest px-10 leading-relaxed">Fill
+                        out the form and generate vouchers to enable printing</p>
+                </div>
+
+                <!-- Results -->
+                <div id="gen-result" class="hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div class="bg-emerald-50 rounded-2xl p-6 border border-emerald-100 mb-8 flex items-center gap-5">
+                        <div class="w-14 h-14 bg-white rounded-xl shadow-sm flex flex-col items-center justify-center">
+                            <span id="gen-count" class="text-2xl font-black text-emerald-600">0</span>
+                            <span class="text-[8px] font-black text-slate-400 uppercase">Qty</span>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest">Successfully
+                                Created</p>
+                            <p id="gen-comment-display" class="text-sm font-bold text-slate-700 truncate max-w-[180px]">
+                                —</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-6">
+                        <div class="space-y-1.5">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Print
+                                Layout</label>
+                            <select id="print-size"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all cursor-pointer">
+                                <option value="default">Default Page Layout</option>
+                                <option value="small">Small Vouchers (6x4 Grid)</option>
+                                <option value="thermal">Thermal Printer (58mm)</option>
+                            </select>
+                        </div>
+
+                        <button onclick="printVouchers()"
+                            class="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-sm font-black shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+                            <i class="fa fa-print text-base"></i>
+                            Open Print Preview
+                        </button>
+
+                        <div class="p-4 bg-slate-50 rounded-xl flex items-center gap-3">
+                            <i class="fa fa-info-circle text-slate-400"></i>
+                            <p class="text-[10px] text-slate-500 font-bold leading-relaxed">Print preview will open in a
+                                new tab. Ensure pop-ups are allowed for this site.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var session = "{{.Session}}";
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : "";
+    var lastComment = "";
+
+    function generate() {
+        $('#gen-spin').show(); $('#gen-ico').hide();
+        var gencode = Date.now().toString(36);
+        var data = {
+            qty: parseInt($('#g-qty').val()),
+            user: $('#g-user').val(),
+            char: $('#g-char').val(),
+            userl: parseInt($('#g-len').val()),
+            prefix: $('#g-prefix').val(),
+            profile: $('#g-profile').val(),
+            server: $('#g-server').val() || 'all',
+            timelimit: $('#g-timelimit').val(),
+            datalimit: $('#g-datalimit').val(),
+            gcomment: $('#g-comment').val(),
+            gencode: gencode,
+            sessname: session
+        };
+
+        $.ajax({
+            url: '/' + session + '/api/generate',
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRF-Token': csrfToken },
+            data: JSON.stringify(data),
+            success: function (r) {
+                $('#gen-spin').hide(); $('#gen-ico').show();
+                lastComment = r.data.comment;
+                $('#gen-count').text(r.data.count);
+                $('#gen-comment-display').text(lastComment || 'No comment');
+                $('#gen-result').removeClass('hidden');
+                $('#gen-placeholder').addClass('hidden');
+                $.notify(r.data.count + ' vouchers generated successfully', "success");
+            },
+            error: function (x) {
+                $('#gen-spin').hide(); $('#gen-ico').show();
+                $.notify(x.responseJSON && x.responseJSON.message || 'Generation failed', "error");
+            }
+        });
+    }
+
+    function printVouchers() {
+        if (!lastComment) { $.notify('Please generate vouchers first', "warn"); return; }
+        var size = $('#print-size').val();
+        window.open('/' + session + '/print-voucher?comment=' + encodeURIComponent(lastComment) + '&size=' + size, '_blank');
+    }
+
+    function loadOptions() {
+        $.get('/' + session + '/api/profiles', function (d) {
+            var opts = ''; (d || []).forEach(function (p) { opts += '<option value="' + p.name + '">' + p.name + '</option>'; });
+            $('#g-profile').html(opts);
+        });
+        $.get('/' + session + '/api/servers', function (d) {
+            var opts = '<option value="all">Every Server</option>'; (d || []).forEach(function (s) { opts += '<option value="' + s.name + '">' + s.name + '</option>'; });
+            $('#g-server').html(opts);
+        });
+    }
+
+    $(document).ready(function () {
+        loadOptions();
+    });
+</script>
+
+<style>
+    @keyframes bounce-x {
+
+        0%,
+        100% {
+            transform: translateX(-25%);
+            animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+        }
+
+        50% {
+            transform: translateX(0);
+            animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+        }
+    }
+
+    .animate-bounce-x {
+        animation: bounce-x 1s infinite;
+    }
+</style>
+{{end}}

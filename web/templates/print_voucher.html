@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Print Vouchers</title>
+    <meta charset="utf-8">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                padding: 0;
+                background: white;
+            }
+
+            .voucher-card {
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 p-8 antialiased">
+    <!-- Action Bar -->
+    <div
+        class="no-print mb-8 flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-200 sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                <i class="fa fa-print"></i>
+            </div>
+            <div>
+                <h1 class="text-sm font-black text-slate-800 uppercase tracking-tight">Print Preview</h1>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Ready for distribution</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="window.print()"
+                class="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-xl text-xs font-black transition-all active:scale-95 shadow-lg shadow-emerald-900/10">
+                Execute Print
+            </button>
+            <button onclick="window.close()"
+                class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-2 rounded-xl text-xs font-black transition-all">
+                Cancel
+            </button>
+        </div>
+    </div>
+
+    <!-- Voucher Header -->
+    {{if .Header}}
+    <div class="max-w-screen-xl mx-auto mb-8 prose prose-slate">
+        {{.Header | unescapeHTML}}
+    </div>
+    {{end}}
+
+    <!-- Voucher Grid -->
+    <div class="max-w-screen-xl mx-auto flex flex-wrap gap-4">
+        {{range .Vouchers}}
+        <div
+            class="voucher-card border-2 border-dashed border-slate-300 bg-white p-4 w-[200px] rounded-lg shadow-sm hover:border-sky-300 transition-colors">
+            {{if $.Row}}
+            <div class="text-[11px] leading-tight">{{$.Row | unescapeHTML}}</div>
+            {{else}}
+            <div class="border-b border-slate-100 pb-2 mb-3">
+                <h3 class="text-[10px] font-black text-sky-600 uppercase tracking-widest truncate">{{.HotspotName}}</h3>
+            </div>
+
+            <div class="space-y-1.5">
+                <div class="flex flex-col">
+                    <span class="text-[8px] font-black text-slate-400 uppercase">Identity</span>
+                    <span class="text-xs font-black text-slate-800">{{.Username}}</span>
+                </div>
+
+                {{if ne .Username .Password}}
+                <div class="flex flex-col">
+                    <span class="text-[8px] font-black text-slate-400 uppercase">Access Key</span>
+                    <span class="text-xs font-black text-slate-800">{{.Password}}</span>
+                </div>
+                {{end}}
+
+                <div class="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-slate-50">
+                    <div class="flex flex-col">
+                        <span class="text-[7px] font-black text-slate-400 uppercase">Profile</span>
+                        <span class="text-[9px] font-bold text-slate-600">{{.Profile}}</span>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-[7px] font-black text-slate-400 uppercase">Limit</span>
+                        <span class="text-[9px] font-bold text-slate-600">
+                            {{if .LimitUptime}}{{.LimitUptime}}{{else if .LimitBytes}}{{.LimitBytes}}{{else}}—{{end}}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {{end}}
+
+            {{if .QRCode}}
+            <div class="mt-4 pt-4 border-t border-slate-50 text-center flex flex-col items-center gap-2">
+                <div class="bg-white p-1 rounded-md border border-slate-100">
+                    <img src="{{.QRCode}}" alt="QR" class="w-16 h-16 opacity-90" />
+                </div>
+                <span class="text-[8px] font-black text-slate-300 uppercase tracking-widest">{{.DNSName}}</span>
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+
+    <!-- Voucher Footer -->
+    {{if .Footer}}
+    <div class="max-w-screen-xl mx-auto mt-8 pt-8 border-t border-slate-200">
+        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+            {{.Footer | unescapeHTML}}
+        </div>
+    </div>
+    {{end}}
+
+    <script>
+        window.onload = function () {
+            // Simple check to auto-print if not in dev mode maybe? 
+            // For now, keep it manual so user can see the UI first!
+            // window.print(); 
+        }
+    </script>
+</body>
+
+</html>

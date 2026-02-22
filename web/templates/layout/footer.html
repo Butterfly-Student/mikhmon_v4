@@ -1,0 +1,60 @@
+{{define "web/templates/layout/footer.html"}}
+<script>
+    var session = "{{.Session}}";
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : "";
+
+    // AJAX helper that includes CSRF token
+    function apiPost(url, data, cb) {
+        $.ajax({
+            url: url,
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRF-Token': csrfToken },
+            data: JSON.stringify(data),
+            success: cb,
+            error: function (xhr) { $.notify(xhr.responseText || 'Error', { className: 'error' }); }
+        });
+    }
+    function apiPut(url, data, cb) {
+        $.ajax({
+            url: url,
+            method: 'PUT',
+            contentType: 'application/json',
+            headers: { 'X-CSRF-Token': csrfToken },
+            data: JSON.stringify(data),
+            success: cb,
+            error: function (xhr) { $.notify(xhr.responseText || 'Error', { className: 'error' }); }
+        });
+    }
+    function apiDelete(url, cb) {
+        $.ajax({
+            url: url,
+            method: 'DELETE',
+            headers: { 'X-CSRF-Token': csrfToken },
+            success: cb,
+            error: function (xhr) { $.notify(xhr.responseText || 'Error', { className: 'error' }); }
+        });
+    }
+
+    // Logout
+    $('#logOut').on('click', function () {
+        apiPost('/logout', {}, function () { window.location.href = '/login'; });
+    });
+
+    // Theme switching
+    function setTheme(t) {
+        $('#theme-css').attr('href', '/static/css/mikhmon-ui.' + t + '.css');
+        $('#pace-css').attr('href', '/static/css/pace.' + t + '.css');
+        localStorage.setItem('theme', t);
+    }
+    function Theme() { $('#Mtheme').toggleClass('hide'); }
+
+    $(document).ready(function () {
+        var t = localStorage.getItem('theme') || 'light';
+        setTheme(t);
+    });
+</script>
+</body>
+
+</html>
+{{end}}

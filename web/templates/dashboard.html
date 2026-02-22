@@ -1,0 +1,337 @@
+{{template "web/templates/layout/base.html" .}}
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Header Box -->
+    <div
+        class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-2 text-slate-700 font-semibold">
+            <i class="fa fa-tag text-sky-500"></i>
+            <span id="sessionLoad" class="uppercase">{{.Router.SessionName}}</span>
+        </div>
+        <div
+            class="flex items-center gap-3 text-sm font-medium text-slate-500 bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
+            <span id="time-zone" class="hidden sm:inline">-</span>
+            <span class="hidden sm:inline font-light text-slate-300">|</span>
+            <span id="time" class="text-slate-900">-</span>
+            <span class="font-light text-slate-300">|</span>
+            <span id="date">-</span>
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Active -->
+        <div
+            class="bg-gradient-to-br from-rose-500 to-rose-600 rounded-2xl shadow-lg shadow-rose-200 p-6 text-white relative overflow-hidden group">
+            <div class="relative z-10 flex justify-between items-start">
+                <div>
+                    <h4 class="text-rose-100 text-sm font-semibold uppercase tracking-wider mb-1">Active</h4>
+                    <span id="hotspot-active" class="text-4xl font-bold">-</span>
+                </div>
+                <div class="bg-white/20 p-3 rounded-xl backdrop-blur-sm group-hover:scale-110 transition-transform">
+                    <i class="fa fa-wifi text-2xl"></i>
+                </div>
+            </div>
+            <div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-125 transition-transform">
+                <i class="fa fa-wifi text-8xl"></i>
+            </div>
+        </div>
+
+        <!-- Users -->
+        <div
+            class="bg-gradient-to-br from-amber-400 to-amber-500 rounded-2xl shadow-lg shadow-amber-100 p-6 text-white relative overflow-hidden group">
+            <div class="relative z-10 flex justify-between items-start">
+                <div>
+                    <h4 class="text-amber-500 text-sm font-semibold uppercase tracking-wider mb-1"
+                        style="color:rgba(255,255,255,0.8)">Users</h4>
+                    <span id="hotspot-users" class="text-4xl font-bold">-</span>
+                </div>
+                <div class="bg-white/20 p-3 rounded-xl backdrop-blur-sm group-hover:scale-110 transition-transform">
+                    <i class="fa fa-users text-2xl"></i>
+                </div>
+            </div>
+            <div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-125 transition-transform">
+                <i class="fa fa-users text-8xl"></i>
+            </div>
+        </div>
+
+        <!-- Income -->
+        <div
+            class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl shadow-lg shadow-emerald-200 p-6 text-white relative overflow-hidden group">
+            <div class="relative z-10 flex justify-between items-center sm:items-start gap-4">
+                <div class="flex-1">
+                    <h4 class="text-emerald-100 text-sm font-semibold uppercase tracking-wider mb-2">Income</h4>
+                    <div class="space-y-1">
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-xs text-emerald-100/70">Month:</span>
+                            <span id="live-report-month" class="text-xl font-bold">-</span>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-xs text-emerald-100/70">Today:</span>
+                            <span id="live-report-day" class="text-sm font-semibold">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white/20 p-3 rounded-xl backdrop-blur-sm group-hover:scale-110 transition-transform">
+                    <i class="fa fa-money text-2xl"></i>
+                </div>
+            </div>
+            <div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-125 transition-transform">
+                <i class="fa fa-money text-8xl"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Main Content (Resource & Info) -->
+        <div class="lg:col-span-8 space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Resource Card -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                        <i class="fa fa-tasks text-sky-500"></i>
+                        <h3 class="font-bold text-slate-800">Resource <span id="identity"
+                                class="text-sky-600 ml-1"></span></h3>
+                    </div>
+                    <div class="p-5">
+                        <table class="w-full text-sm">
+                            <tbody class="divide-y divide-slate-50">
+                                <tr>
+                                    <td class="py-3 text-slate-500 font-medium">CPU Load</td>
+                                    <td class="py-3 pl-4">
+                                        <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                            <div id="prog-cpu" class="bg-sky-500 h-full transition-all duration-1000"
+                                                style="width: 0%"></div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 pl-2 text-right font-bold text-slate-700 min-w-[50px]"
+                                        id="cpu-load">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 text-slate-500 font-medium">Memory</td>
+                                    <td class="py-3 pl-4">
+                                        <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                            <div id="prog-memory"
+                                                class="bg-violet-500 h-full transition-all duration-1000"
+                                                style="width: 0%"></div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 pl-2 text-right font-bold text-slate-700 min-w-[50px]" id="memory">-
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 text-slate-500 font-medium">HDD Space</td>
+                                    <td class="py-3 pl-4">
+                                        <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                            <div id="prog-hdd" class="bg-amber-500 h-full transition-all duration-1000"
+                                                style="width: 0%"></div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 pl-2 text-right font-bold text-slate-700 min-w-[50px]" id="hdd">-
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 text-slate-500 font-medium">Health</td>
+                                    <td colspan="2" class="py-3 pl-4">
+                                        <div class="flex items-center gap-4 text-slate-600 font-semibold">
+                                            <span class="flex items-center gap-1.5" title="Voltage"><i
+                                                    class="fa fa-bolt text-amber-500"></i> <span
+                                                    id="voltage">-</span></span>
+                                            <span class="flex items-center gap-1.5" title="Temperature"><i
+                                                    class="fa fa-thermometer-empty text-rose-500"></i> <span
+                                                    id="temperature">-</span></span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- System Info Card -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden text-sm">
+                    <div class="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                        <i class="fa fa-info-circle text-sky-500"></i>
+                        <h3 class="font-bold text-slate-800">System Info</h3>
+                    </div>
+                    <div class="p-5">
+                        <ul class="divide-y divide-slate-50">
+                            <li class="py-3 flex justify-between gap-4">
+                                <span class="text-slate-500 font-medium">Uptime</span>
+                                <span id="uptime" class="text-slate-900 font-semibold italic">-</span>
+                            </li>
+                            <li class="py-3 flex justify-between gap-4">
+                                <span class="text-slate-500 font-medium">Board Name</span>
+                                <span id="board-name" class="text-slate-900 font-semibold">-</span>
+                            </li>
+                            <li class="py-3 flex justify-between gap-4">
+                                <span class="text-slate-500 font-medium">Model</span>
+                                <span id="model" class="text-slate-900 font-semibold">-</span>
+                            </li>
+                            <li class="py-3 flex justify-between gap-4">
+                                <span class="text-slate-500 font-medium">Router OS</span>
+                                <span id="version" class="text-sky-600 font-bold">-</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Traffic Monitor Card -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div
+                    class="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <i class="fa fa-area-chart text-sky-500"></i>
+                        <h3 class="font-bold text-slate-800">Traffic Monitor</h3>
+                    </div>
+                    <select id="iface-name"
+                        class="text-xs bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-sky-500/20 shadow-sm transition-all font-semibold text-slate-600"></select>
+                </div>
+                <div class="p-4">
+                    <div id="trafficMonitor" class="w-full h-48 sm:h-64 rounded-xl"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Side (Logs) -->
+        <div class="lg:col-span-4 space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-full">
+                <div class="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                    <i class="fa fa-file-text text-sky-500"></i>
+                    <h3 class="font-bold text-slate-800">Hotspot Log</h3>
+                </div>
+                <div class="p-0 overflow-y-auto no-scrollbar" style="max-height: 700px;">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-50 text-slate-400 font-semibold uppercase sticky top-0 z-10">
+                            <tr>
+                                <th class="px-4 py-3 border-b border-slate-100">Time</th>
+                                <th class="px-4 py-3 border-b border-slate-100">User / Msg</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log" class="divide-y divide-slate-50">
+                            <tr>
+                                <td colspan="2" class="px-4 py-10 text-center text-slate-300 italic">Connecting to
+                                    router...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/highcharts/highcharts.js"></script>
+<script src="/static/js/highcharts/highcharts.theme.js"></script>
+<script>
+    var session = "{{.Session}}";
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : "";
+
+    function loadDashboard() {
+        $.get('/' + session + '/api/dashboard?page=get_sys_resource', function (d) {
+            $('#identity').text(d.identity || '');
+            if (d.resource) {
+                var cpu = d.resource['cpu-load'] || '0';
+                $('#cpu-load').text(cpu + '%');
+                $('#prog-cpu').css('width', cpu + '%');
+                var totalMem = +d.resource['total-memory'] || 1;
+                var freeMem = +d.resource['free-memory'] || 0;
+                var memPct = Math.round((totalMem - freeMem) / totalMem * 100);
+                $('#memory').text(memPct + '%');
+                $('#prog-memory').css('width', memPct + '%');
+                var totalHDD = +d.resource['total-hdd-space'] || 1;
+                var freeHDD = +d.resource['free-hdd-space'] || 0;
+                var hddPct = Math.round((totalHDD - freeHDD) / totalHDD * 100);
+                $('#hdd').text(hddPct + '%');
+                $('#prog-hdd').css('width', hddPct + '%');
+                $('#uptime').text(d.resource['uptime'] || '-');
+                $('#board-name').text(d.resource['board-name'] || '-');
+                $('#version').text(d.resource['version'] || '-');
+            }
+            if (d.systime) {
+                $('#time-zone').text(d.systime['time-zone-name'] || '');
+                $('#time').text(d.systime['time'] || '');
+                $('#date').text(d.systime['date'] || '');
+            }
+            if (d.syshealth) {
+                $('#voltage').text((d.syshealth['voltage'] || '-') + ' V');
+                $('#temperature').text((d.syshealth['temperature'] || '-') + '°C');
+            }
+            $('#model').text(d.model || '-');
+        });
+        $.get('/' + session + '/api/dashboard?page=get_hotspotinfo', function (d) {
+            $('#hotspot-active').text(d.hotspot_active || 0);
+            $('#hotspot-users').text(d.hotspot_users || 0);
+        });
+        $.get('/' + session + '/api/logs', function (logs) {
+            var html = '';
+            logs.slice(0, 30).forEach(function (l) {
+                html += '<tr class="hover:bg-slate-50 transition-colors group">';
+                html += '<td class="px-4 py-3 text-slate-400 whitespace-nowrap font-mono">' + l.time + '</td>';
+                html += '<td class="px-4 py-3">';
+                html += '<div class="font-bold text-slate-700">' + (l.topics || 'system') + '</div>';
+                html += '<div class="text-slate-500 leading-relaxed">' + l.message + '</div>';
+                html += '</td></tr>';
+            });
+            $('#log').html(html || '<tr><td colspan="2" class="px-4 py-10 text-center text-slate-300 italic">No logs found.</td></tr>');
+        });
+    }
+
+    function loadInterfaces() {
+        $.get('/' + session + '/api/interfaces', function (d) {
+            var opts = ''; d.forEach(function (i) { opts += '<option value="' + i['name'] + '">' + i['name'] + '</option>'; });
+            $('#iface-name').html(opts);
+            if (d.length > 0) startTraffic(d[0]['name']);
+        });
+    }
+
+    var trafficChart = null;
+    var sse = null;
+    function startTraffic(iface) {
+        if (sse) sse.close();
+        if (!Highcharts) return;
+        trafficChart = Highcharts.chart('trafficMonitor', {
+            chart: { type: 'area', animation: Highcharts.svg, backgroundColor: 'transparent' },
+            title: { text: null },
+            credits: { enabled: false },
+            xAxis: { type: 'datetime', tickPixelInterval: 150, lineColor: '#e2e8f0' },
+            yAxis: { title: { text: 'bits/s' }, min: 0, gridLineColor: '#f1f5f9' },
+            tooltip: { shared: true, borderRadius: 12, borderWidth: 0, shadow: true, padding: 12 },
+            plotOptions: {
+                area: {
+                    fillOpacity: 0.1,
+                    lineWidth: 3,
+                    marker: { enabled: false, states: { hover: { enabled: true } } },
+                    threshold: null
+                }
+            },
+            series: [
+                { name: 'TX', data: [], color: '#0ea5e9' },
+                { name: 'RX', data: [], color: '#f43f5e' }
+            ]
+        });
+        sse = new EventSource('/' + session + '/api/traffic?iface=' + iface);
+        sse.onmessage = function (e) {
+            var d = JSON.parse(e.data);
+            var now = (new Date()).getTime();
+            trafficChart.series[0].addPoint([now, +d.tx || 0], true, trafficChart.series[0].data.length > 30);
+            trafficChart.series[1].addPoint([now, +d.rx || 0], true, trafficChart.series[1].data.length > 30);
+        };
+    }
+
+    $('#iface-name').on('change', function () { startTraffic(this.value); });
+
+    $(document).ready(function () {
+        loadDashboard();
+        loadInterfaces();
+        setInterval(loadDashboard, 15000);
+    });
+
+    $('#logOut').on('click', function () {
+        if (confirm('Are you sure you want to sign out?')) {
+            $.post('/logout', function () { window.location.href = '/login'; });
+        }
+    });
+</script>
+{{end}}

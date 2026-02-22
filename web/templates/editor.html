@@ -1,0 +1,130 @@
+{{template "web/templates/layout/base.html" .}}
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-sky-502 flex items-center justify-center text-sky-500 shadow-inner">
+                <i class="fa fa-edit text-2xl"></i>
+            </div>
+            <div>
+                <h3 class="text-xl font-black text-slate-800 tracking-tight">Voucher Template Editor</h3>
+                <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Customize your voucher appearance</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <button onclick="saveTemplate()" class="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-sky-900/10 transition-all flex items-center gap-2">
+                <i class="fa fa-save"></i> Save Template
+            </button>
+            <button onclick="resetTemplate()" class="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-bold transition-all flex items-center gap-2">
+                <i class="fa fa-undo"></i> Reset
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Editor -->
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-wrap items-center gap-6">
+            <div class="flex flex-col gap-1.5 min-w-[150px]">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Page Format</label>
+                <select id="tpl-size" onchange="switchTemplate()" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all cursor-pointer">
+                    <option value="default">Default Page</option>
+                    <option value="small">Small (6x4)</option>
+                    <option value="thermal">Thermal (58mm)</option>
+                </select>
+            </div>
+            
+            <div class="flex flex-col gap-1.5 min-w-[150px]">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Template Section</label>
+                <select id="tpl-section" onchange="switchTemplate()" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all cursor-pointer">
+                    <option value="header">Header Section</option>
+                    <option value="row">Row (Repeatable)</option>
+                    <option value="footer">Footer Section</option>
+                </select>
+            </div>
+
+            <div class="flex-1 flex items-center justify-end">
+                <div class="flex items-center gap-2 text-slate-400 text-xs font-bold bg-slate-100 px-3 py-1.5 rounded-full">
+                    <i class="fa fa-code"></i>
+                    HTML/CSS Supported
+                </div>
+            </div>
+        </div>
+        
+        <div class="p-6 bg-slate-900">
+            <textarea id="tpl-content" spellcheck="false" class="w-full h-[500px] bg-transparent text-emerald-400 font-mono text-sm border-none focus:ring-0 resize-none no-scrollbar leading-relaxed" placeholder="<!-- Your HTML here -->"></textarea>
+        </div>
+        
+        <div class="px-6 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <span class="text-[10px] text-slate-400 font-black uppercase tracking-widest">Available Variables:</span>
+                <div class="flex gap-2">
+                    <code class="text-[10px] bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 font-bold">%username%</code>
+                    <code class="text-[10px] bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 font-bold">%password%</code>
+                    <code class="text-[10px] bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 font-bold">%price%</code>
+                </div>
+            </div>
+            <span id="char-count" class="text-[10px] text-slate-400 font-bold">0 characters</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    // TemplatesJSON is pre-serialized by Go as a safe JS literal.
+    var tplData = {{.TemplatesJSON}};
+
+    function getCurrentContent() {
+        var size = $('#tpl-size').val();
+        var sec = $('#tpl-section').val();
+        return (tplData[size] && tplData[size][sec]) ? tplData[size][sec] : '';
+    }
+
+    function switchTemplate() {
+        var content = getCurrentContent();
+        $('#tpl-content').val(content);
+        updateCharCount();
+    }
+
+    function updateCharCount() {
+        var len = $('#tpl-content').val().length;
+        $('#char-count').text(len.toLocaleString() + ' characters');
+    }
+
+    function saveTemplate() {
+        var size = $('#tpl-size').val();
+        var sec = $('#tpl-section').val();
+        var content = $('#tpl-content').val();
+        
+        // Backend expects: Section, Template, Content
+        $.ajax({
+            url: '/admin/api/template',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ 
+                template: size, 
+                section: sec, 
+                content: content 
+            }),
+            success: function () {
+                if (!tplData[size]) tplData[size] = {};
+                tplData[size][sec] = content;
+                $.notify('Template saved successfully', "success");
+            },
+            error: function (x) { 
+                $.notify((x.responseJSON && x.responseJSON.message) || 'Save failed', "error"); 
+            }
+        });
+    }
+
+    function resetTemplate() {
+        if (!confirm('Discard changes and reset to saved version?')) return;
+        switchTemplate();
+    }
+
+    $(document).ready(function () {
+        switchTemplate();
+        $('#tpl-content').on('input', updateCharCount);
+    });
+</script>
+{{end}}

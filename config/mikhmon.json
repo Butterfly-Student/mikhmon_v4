@@ -1,0 +1,42 @@
+{
+  "admin": {
+    "username": "mikhmon",
+    "password_hash": "$2a$10$R8Uo1yPHYjgW6DtPmMQcwOXY67JyJZdEJWG9MxlI.T5VMXtGbZG/6"
+  },
+  "routers": [
+    {
+      "session_name": "session928",
+      "host": "192.168.233.1:8728",
+      "username": "admin",
+      "password": "r00t",
+      "hotspot_name": "",
+      "dns_name": "",
+      "currency": "Rp",
+      "phone": "",
+      "email": "",
+      "info_lp": "",
+      "idle_timeout": "30",
+      "report_flag": "disable",
+      "token": ""
+    },
+    {
+      "session_name": "session403",
+      "host": "192.168.233.1:8728",
+      "username": "admin",
+      "password": "r00t",
+      "hotspot_name": "",
+      "dns_name": "",
+      "currency": "Rp",
+      "phone": "",
+      "email": "",
+      "info_lp": "",
+      "idle_timeout": "30",
+      "report_flag": "disable",
+      "token": ""
+    }
+  ],
+  "server": {
+    "port": 8080,
+    "session_secret": "change-me-in-production"
+  }
+}

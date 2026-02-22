@@ -1,0 +1,660 @@
+{{template "web/templates/layout/base.html" .}}
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Header/Navigation Card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div
+            class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-sky-502 flex items-center justify-center text-sky-500 shadow-inner">
+                    <i class="fa fa-wifi"></i>
+                </div>
+                <h3 class="text-lg font-black text-slate-800 tracking-tight">Hotspot Management</h3>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <nav class="flex bg-slate-100 p-1 rounded-xl mr-2">
+                    <button id="tab-users" onclick="showTab('users')"
+                        class="px-4 py-2 rounded-lg text-sm font-bold transition-all">Users</button>
+                    <button id="tab-active" onclick="showTab('active')"
+                        class="px-4 py-2 rounded-lg text-sm font-bold transition-all">Active</button>
+                    <button id="tab-profiles" onclick="showTab('profiles')"
+                        class="px-4 py-2 rounded-lg text-sm font-bold transition-all">Profiles</button>
+                    <button id="tab-hosts" onclick="showTab('hosts')"
+                        class="px-4 py-2 rounded-lg text-sm font-bold transition-all">Hosts</button>
+                </nav>
+
+                <button id="btnAdd" onclick="openAddModal()"
+                    class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-sky-900/10 transition-all flex items-center gap-2">
+                    <i class="fa fa-plus"></i> Add
+                </button>
+            </div>
+        </div>
+
+        <div class="px-6 py-4 bg-white flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="relative group" id="filter-container">
+                    <select id="filterProf" onchange="loadUsers()"
+                        class="appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 pr-10 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all cursor-pointer">
+                        <option value="all">All Profiles</option>
+                    </select>
+                    <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <i class="fa fa-chevron-down text-[10px]"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="relative w-full md:w-64">
+                <i class="fa fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                <input type="search" id="searchUser" oninput="filterTable()" placeholder="Search users..."
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm font-medium focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all">
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Panes -->
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <!-- Users Table -->
+        <div id="pane-users" class="overflow-x-auto">
+            <table class="w-full text-left border-collapse" id="userTable">
+                <thead>
+                    <tr class="bg-slate-50/50">
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            #</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            Name</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            Password</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            Profile</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            Uptime</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            Comment</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">
+                            Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="userBody" class="divide-y divide-slate-50">
+                    <!-- Loading State -->
+                    <tr>
+                        <td colspan="7" class="px-6 py-20 text-center">
+                            <i class="fa fa-circle-o-notch fa-spin text-sky-500 text-2xl"></i>
+                            <p class="text-sm text-slate-400 font-bold mt-4">Loading user data...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Active Sessions Table -->
+        <div id="pane-active" class="hidden overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50/50">
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            #</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            User</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            Address</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            MAC</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            Uptime</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">
+                            Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="activeBody" class="divide-y divide-slate-50"></tbody>
+            </table>
+        </div>
+
+        <!-- Profiles Table -->
+        <div id="pane-profiles" class="hidden overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50/50">
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            #</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            Name</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            Limit</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            Shared</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            On-Login</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">
+                            Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="profileBody" class="divide-y divide-slate-50"></tbody>
+            </table>
+        </div>
+
+        <!-- Hosts Table -->
+        <div id="pane-hosts" class="hidden overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50/50">
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            #</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            MAC</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            IP</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            To-Address</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">
+                            Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="hostBody" class="divide-y divide-slate-50"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit User Modal -->
+<div id="modal-user" class="fixed inset-0 z-50 hidden opacity-0 transition-opacity duration-300">
+    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeModal('modal-user')"></div>
+    <div
+        class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 transform scale-95 transition-transform duration-300 overflow-hidden">
+        <div class="flex items-center gap-4 mb-8">
+            <div class="w-12 h-12 rounded-2xl bg-sky-502 flex items-center justify-center text-sky-600 shadow-inner">
+                <i class="fa fa-user-plus text-xl"></i>
+            </div>
+            <div>
+                <h3 id="modal-title" class="text-xl font-black text-slate-800 tracking-tight">Add Hotspot User</h3>
+                <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">User connection credentials</p>
+            </div>
+        </div>
+
+        <input type="hidden" id="user-id" />
+        <div class="space-y-5">
+            <div class="space-y-1.5">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Username</label>
+                <input type="text" id="u-name"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all">
+            </div>
+            <div class="space-y-1.5">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Password</label>
+                <input type="text" id="u-pass"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Profile</label>
+                    <select id="u-profile"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all cursor-pointer"></select>
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Limit
+                        Uptime</label>
+                    <input type="text" id="u-uptime" placeholder="e.g. 1h"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all">
+                </div>
+            </div>
+            <div class="space-y-1.5">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Comment</label>
+                <input type="text" id="u-comment"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all">
+            </div>
+        </div>
+
+        <div class="mt-10 flex gap-3">
+            <button onclick="saveUser()"
+                class="flex-1 py-3.5 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl text-sm font-black shadow-lg shadow-sky-900/20 transition-all flex items-center justify-center gap-2">
+                <i class="fa fa-save"></i> Save Changes
+            </button>
+            <button onclick="closeModal('modal-user')"
+                class="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-2xl text-sm font-bold transition-all">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Profile Modal -->
+<div id="modal-profile" class="fixed inset-0 z-50 hidden opacity-0 transition-opacity duration-300">
+    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeModal('modal-profile')"></div>
+    <div
+        class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-8 transform scale-95 transition-transform duration-300 overflow-y-auto max-h-[90vh] no-scrollbar">
+        <div class="flex items-center gap-4 mb-8">
+            <div class="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500 shadow-inner">
+                <i class="fa fa-id-card-o text-xl"></i>
+            </div>
+            <div>
+                <h3 id="profile-modal-title" class="text-xl font-black text-slate-800 tracking-tight">Hotspot Profile
+                </h3>
+                <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Plan & bandwidth settings</p>
+            </div>
+        </div>
+
+        <input type="hidden" id="p-id" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-5">
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Profile
+                        Name</label>
+                    <input type="text" id="p-name"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all">
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Rate Limit
+                        (Up/Down)</label>
+                    <input type="text" id="p-ratelimit" placeholder="e.g. 512k/1M"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Shared
+                            Users</label>
+                        <input type="text" id="p-shared" value="1"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Address
+                            Pool</label>
+                        <select id="p-pool"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all cursor-pointer"></select>
+                    </div>
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parent
+                        Queue</label>
+                    <select id="p-queue"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all cursor-pointer"></select>
+                </div>
+            </div>
+
+            <div class="space-y-5">
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Expiration
+                        Mode</label>
+                    <select id="p-expmode"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all cursor-pointer">
+                        <option value="">None</option>
+                        <option value="rem">Remove</option>
+                        <option value="ntf">Notify</option>
+                        <option value="remc">Remove+Record</option>
+                        <option value="ntfc">Notify+Record</option>
+                    </select>
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Validity (e.g.
+                        30d)</label>
+                    <input type="text" id="p-validity"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label
+                            class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Price</label>
+                        <input type="text" id="p-price"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Selling
+                            Price</label>
+                        <input type="text" id="p-sprice"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lock User
+                            (MAC)</label>
+                        <select id="p-lock"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all cursor-pointer">
+                            <option>Disable</option>
+                            <option>Enable</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lock
+                            Server</label>
+                        <select id="p-lockserver"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all cursor-pointer">
+                            <option>Disable</option>
+                            <option>Enable</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-10 flex gap-3">
+            <button onclick="saveProfile()"
+                class="flex-1 py-3.5 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl text-sm font-black shadow-lg shadow-rose-900/20 transition-all flex items-center justify-center gap-2">
+                <i class="fa fa-save"></i> Save Profile
+            </button>
+            <button onclick="closeModal('modal-profile')"
+                class="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-2xl text-sm font-bold transition-all">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    var session = "{{.Session}}";
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : "";
+
+    function apiPost(url, data, cb) { $.ajax({ url: url, method: 'POST', contentType: 'application/json', headers: { 'X-CSRF-Token': csrfToken }, data: JSON.stringify(data), success: cb, error: function (x) { $.notify(x.responseJSON && x.responseJSON.error || 'Error', "error"); } }); }
+    function apiPut(url, data, cb) { $.ajax({ url: url, method: 'PUT', contentType: 'application/json', headers: { 'X-CSRF-Token': csrfToken }, data: JSON.stringify(data), success: cb, error: function (x) { $.notify(x.responseJSON && x.responseJSON.error || 'Error', "error"); } }); }
+    function apiDelete(url, cb) { if (confirm('Are you sure you want to delete this?')) { $.ajax({ url: url, method: 'DELETE', headers: { 'X-CSRF-Token': csrfToken }, success: cb, error: function (x) { $.notify(x.responseJSON && x.responseJSON.error || 'Error', "error"); } }); } }
+
+    function showTab(t) {
+        ['users', 'active', 'profiles', 'hosts'].forEach(function (x) {
+            $('#pane-' + x).addClass('hidden');
+            $('#tab-' + x).removeClass('bg-white text-sky-600 shadow-sm').addClass('text-slate-500 hover:bg-white/50');
+        });
+        $('#pane-' + t).removeClass('hidden');
+        $('#tab-' + t).addClass('bg-white text-sky-600 shadow-sm').removeClass('text-slate-500 hover:bg-white/50');
+
+        switch (t) {
+            case 'users': loadUsers(); break;
+            case 'active': loadActive(); break;
+            case 'profiles': loadProfiles(); break;
+            case 'hosts': loadHosts(); break;
+        }
+
+        // UI Adjustments
+        if (t === 'users' || t === 'profiles') $('#btnAdd').show(); else $('#btnAdd').hide();
+        if (t === 'users') {
+            $('#btnAdd').attr('onclick', 'openAddModal()').html('<i class="fa fa-plus"></i> Add User');
+            $('#filter-container').show();
+        } else if (t === 'profiles') {
+            $('#btnAdd').attr('onclick', 'openAddProfileModal()').html('<i class="fa fa-plus"></i> Add Profile');
+            $('#filter-container').hide();
+        }
+    }
+
+    function filterTable() {
+        var q = $('#searchUser').val().toLowerCase();
+        $('#userTable tbody tr').each(function () {
+            $(this).toggle($(this).text().toLowerCase().indexOf(q) > -1);
+        });
+    }
+
+    // Users
+    function loadUsers() {
+        var prof = $('#filterProf').val() || 'all';
+        $('#userBody').html('<tr><td colspan="7" class="px-6 py-20 text-center"><i class="fa fa-circle-o-notch fa-spin text-sky-500 text-2xl"></i></td></tr>');
+        $.get('/' + session + '/api/users?prof=' + prof, function (d) {
+            var html = ''; (d || []).forEach(function (u, i) {
+                if (u.name === '*') return;
+                html += '<tr class="hover:bg-slate-50/50 transition-colors group">';
+                html += '<td class="px-6 py-4 text-xs font-bold text-slate-400">' + (i + 1) + '</td>';
+                html += '<td class="px-6 py-4"><div class="text-sm font-black text-slate-700">' + u.name + '</div></td>';
+                html += '<td class="px-6 py-4 text-xs font-mono text-slate-500">' + (u.password || '—') + '</td>';
+                html += '<td class="px-6 py-4"><span class="px-2.5 py-1 bg-sky-50 text-sky-600 rounded-lg text-[10px] font-black uppercase">' + u.profile + '</span></td>';
+                html += '<td class="px-6 py-4 text-xs text-slate-500">' + (u['limit-uptime'] || 'Unlimited') + '</td>';
+                html += '<td class="px-6 py-4 text-xs text-slate-400 italic">' + (u.comment || '') + '</td>';
+                html += '<td class="px-6 py-4 text-right">';
+                html += ' <button onclick="editUser(\'' + u['.id'] + '\')" class="p-2 text-slate-400 hover:text-sky-600 transition-colors"><i class="fa fa-edit"></i></button>';
+                html += ' <button onclick="removeUser(\'' + u['.id'] + '\')" class="p-2 text-slate-400 hover:text-rose-500 transition-colors"><i class="fa fa-trash"></i></button>';
+                html += '</td></tr>';
+            });
+            $('#userBody').html(html || '<tr><td colspan="7" class="px-6 py-20 text-center text-slate-400 font-bold italic">No users found.</td></tr>');
+        });
+    }
+
+    function openAddModal() {
+        $('#user-id').val('');
+        $('#u-name,#u-pass,#u-uptime,#u-comment').val('');
+        $('#modal-title').text('Add Hotspot User');
+        showModal('modal-user');
+        loadProfileSelect();
+    }
+
+    function editUser(id) {
+        $.get('/' + session + '/api/users/' + id, function (u) {
+            $('#user-id').val(u['.id']);
+            $('#u-name').val(u.name);
+            $('#u-pass').val(u.password);
+            $('#u-uptime').val(u['limit-uptime'] || '');
+            $('#u-comment').val(u.comment || '');
+            loadProfileSelect(u.profile);
+            $('#modal-title').text('Edit Hotspot User');
+            showModal('modal-user');
+        });
+    }
+
+    function saveUser() {
+        var id = $('#user-id').val();
+        var data = { name: $('#u-name').val(), password: $('#u-pass').val(), profile: $('#u-profile').val(), 'limit-uptime': $('#u-uptime').val(), comment: $('#u-comment').val() };
+        if (id) {
+            apiPut('/' + session + '/api/users/' + id, data, function () {
+                $.notify('User updated successfully', "success");
+                closeModal('modal-user'); loadUsers();
+            });
+        } else {
+            apiPost('/' + session + '/api/users', data, function () {
+                $.notify('User added successfully', "success");
+                closeModal('modal-user'); loadUsers();
+            });
+        }
+    }
+
+    function removeUser(id) {
+        apiDelete('/' + session + '/api/users/' + id, function () {
+            $.notify('User removed', "success"); loadUsers();
+        });
+    }
+
+    function loadProfileSelect(sel) {
+        $.get('/' + session + '/api/profiles', function (d) {
+            var opts = ''; (d || []).forEach(function (p) { opts += '<option value="' + p.name + '"' + (p.name === sel ? ' selected' : '') + '>' + p.name + '</option>'; });
+            $('#u-profile').html(opts);
+            var fopts = '<option value="all">All Profiles</option>';
+            (d || []).forEach(function (p) { fopts += '<option value="' + p.name + '">' + p.name + '</option>'; });
+            $('#filterProf').html(fopts);
+            if (sel) $('#filterProf').val(sel);
+        });
+    }
+
+    // Active sessions
+    function loadActive() {
+        $('#activeBody').html('<tr><td colspan="6" class="px-6 py-20 text-center"><i class="fa fa-circle-o-notch fa-spin text-sky-500 text-2xl"></i></td></tr>');
+        $.get('/' + session + '/api/active', function (d) {
+            var html = ''; (d || []).forEach(function (a, i) {
+                html += '<tr class="hover:bg-slate-50/50 transition-colors">';
+                html += '<td class="px-6 py-4 text-xs font-bold text-slate-400">' + (i + 1) + '</td>';
+                html += '<td class="px-6 py-4"><div class="text-sm font-black text-slate-700">' + a.user + '</div></td>';
+                html += '<td class="px-6 py-4 text-xs text-slate-500 font-mono">' + a.address + '</td>';
+                html += '<td class="px-6 py-4 text-[10px] text-slate-400 font-mono">' + a['mac-address'] + '</td>';
+                html += '<td class="px-6 py-4 text-xs font-bold text-sky-600">' + a.uptime + '</td>';
+                html += '<td class="px-6 py-4 text-right"><button onclick="kickSession(\'' + a['.id'] + '\')" class="px-3 py-1.5 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-lg text-[10px] font-black transition-all">KICK</button></td></tr>';
+            });
+            $('#activeBody').html(html || '<tr><td colspan="6" class="px-6 py-20 text-center text-slate-400 font-bold italic">No active sessions.</td></tr>');
+        });
+    }
+    function kickSession(id) {
+        apiDelete('/' + session + '/api/active/' + id, function () {
+            $.notify('Session disconnected', "success"); loadActive();
+        });
+    }
+
+    // Profiles
+    function loadProfiles() {
+        $('#profileBody').html('<tr><td colspan="6" class="px-6 py-20 text-center"><i class="fa fa-circle-o-notch fa-spin text-sky-500 text-2xl"></i></td></tr>');
+        $.get('/' + session + '/api/profiles', function (d) {
+            var html = ''; (d || []).forEach(function (p, i) {
+                html += '<tr class="hover:bg-slate-50/50 transition-colors">';
+                html += '<td class="px-6 py-4 text-xs font-bold text-slate-400">' + (i + 1) + '</td>';
+                html += '<td class="px-6 py-4"><div class="text-sm font-black text-slate-700">' + p.name + '</div></td>';
+                html += '<td class="px-6 py-4 text-xs font-bold text-slate-500">' + (p['rate-limit'] || '—') + '</td>';
+                html += '<td class="px-6 py-4 text-xs text-slate-500">' + (p['shared-users'] || '1') + '</td>';
+                html += '<td class="px-6 py-4 text-[10px] text-slate-400 truncate max-w-[150px]">' + (p['on-login'] || '—') + '</td>';
+                html += '<td class="px-6 py-4 text-right">';
+                html += ' <button onclick="editProfile(\'' + p['.id'] + '\')" class="p-2 text-slate-400 hover:text-rose-500 transition-colors"><i class="fa fa-edit"></i></button>';
+                html += ' <button onclick="removeProfile(\'' + p['.id'] + '\')" class="p-2 text-slate-400 hover:text-rose-500 transition-colors"><i class="fa fa-trash"></i></button>';
+                html += '</td></tr>';
+            });
+            $('#profileBody').html(html || '<tr><td colspan="6" class="px-6 py-20 text-center text-slate-400 font-bold italic">No profiles found.</td></tr>');
+        });
+    }
+
+    function openAddProfileModal() {
+        $('#p-id').val('');
+        $('#p-name,#p-ratelimit,#p-validity,#p-price,#p-sprice').val('');
+        $('#p-shared').val('1');
+        loadPoolSelect();
+        loadQueueSelect();
+        showModal('modal-profile');
+        $('#profile-modal-title').text('Add Hotspot Profile');
+    }
+
+    function parseProfile(p) {
+        var meta = { expmode: '', price: '', validity: '', sprice: '', lockuser: 'Disable', lockserver: 'Disable' };
+        var script = p['on-login'] || '';
+        // Format: :put (",rem,1000,1d,1500,,Enable,Disable,");
+        var match = script.match(/:put\s*\(\"([^"]+)\"\)/);
+        if (match) {
+            var parts = match[1].split(',');
+            if (parts.length >= 8) {
+                meta.expmode = parts[1];
+                meta.price = parts[2];
+                meta.validity = parts[3];
+                meta.sprice = parts[4];
+                meta.lockuser = parts[6];
+                meta.lockserver = parts[7];
+            }
+        }
+        return meta;
+    }
+
+    function editProfile(id) {
+        $.get('/' + session + '/api/profiles/' + id, function (p) {
+            var meta = parseProfile(p);
+            $('#p-id').val(p['.id']);
+            $('#p-name').val(p.name);
+            $('#p-ratelimit').val(p['rate-limit'] || '');
+            $('#p-shared').val(p['shared-users'] || '1');
+            $('#p-expmode').val(meta.expmode || '');
+            $('#p-validity').val(meta.validity || '');
+            $('#p-price').val(meta.price || '');
+            $('#p-sprice').val(meta.sprice || '');
+            $('#p-lock').val(meta.lockuser || 'Disable');
+            $('#p-lockserver').val(meta.lockserver || 'Disable');
+            loadPoolSelect(p['address-pool']);
+            loadQueueSelect(p['parent-queue']);
+            $('#profile-modal-title').text('Edit Hotspot Profile');
+            showModal('modal-profile');
+        });
+    }
+
+    function saveProfile() {
+        var id = $('#p-id').val();
+        var data = {
+            name: $('#p-name').val(), ratelimit: $('#p-ratelimit').val(), sharedusers: $('#p-shared').val(),
+            addresspool: $('#p-pool').val(), expmode: $('#p-expmode').val(), validity: $('#p-validity').val(),
+            price: $('#p-price').val(), sellingprice: $('#p-sprice').val(), lockuser: $('#p-lock').val(),
+            lockserver: $('#p-lockserver').val(), parentqueue: $('#p-queue').val()
+        };
+        if (id) {
+            apiPut('/' + session + '/api/profiles/' + id, data, function () {
+                $.notify('Profile updated', "success");
+                closeModal('modal-profile'); loadProfiles();
+            });
+        } else {
+            apiPost('/' + session + '/api/profiles', data, function () {
+                $.notify('Profile added', "success");
+                closeModal('modal-profile'); loadProfiles();
+            });
+        }
+    }
+
+    function removeProfile(id) {
+        apiDelete('/' + session + '/api/profiles/' + id, function () {
+            $.notify('Profile removed', "success"); loadProfiles();
+        });
+    }
+
+    function loadPoolSelect(sel) {
+        $.get('/' + session + '/api/pools', function (d) {
+            var opts = '<option value="">none</option>';
+            (d || []).forEach(function (x) { opts += '<option value="' + x.name + '"' + (x.name === sel ? ' selected' : '') + '>' + x.name + '</option>'; });
+            $('#p-pool').html(opts);
+        });
+    }
+
+    function loadQueueSelect(sel) {
+        $.get('/' + session + '/api/queues', function (d) {
+            var opts = '<option value="">none</option>';
+            (d || []).forEach(function (x) { opts += '<option value="' + x.name + '"' + (x.name === sel ? ' selected' : '') + '>' + x.name + '</option>'; });
+            $('#p-queue').html(opts);
+        });
+    }
+
+    // Hosts
+    function loadHosts() {
+        $('#hostBody').html('<tr><td colspan="5" class="px-6 py-20 text-center"><i class="fa fa-circle-o-notch fa-spin text-sky-500 text-2xl"></i></td></tr>');
+        $.get('/' + session + '/api/hosts', function (d) {
+            var html = ''; (d || []).forEach(function (h, i) {
+                html += '<tr class="hover:bg-slate-50/50 transition-colors">';
+                html += '<td class="px-6 py-4 text-xs font-bold text-slate-400">' + (i + 1) + '</td>';
+                html += '<td class="px-6 py-4 text-xs font-mono text-slate-700">' + h['mac-address'] + '</td>';
+                html += '<td class="px-6 py-4 text-xs font-mono text-slate-500">' + h['address'] + '</td>';
+                html += '<td class="px-6 py-4 text-xs font-mono text-slate-400">' + (h['to-address'] || '—') + '</td>';
+                html += '<td class="px-6 py-4 text-right"><button onclick="removeHost(\'' + h['.id'] + '\')" class="p-2 text-slate-400 hover:text-rose-500 transition-colors"><i class="fa fa-trash"></i></button></td></tr>';
+            });
+            $('#hostBody').html(html || '<tr><td colspan="5" class="px-6 py-20 text-center text-slate-400 font-bold italic">No hosts found.</td></tr>');
+        });
+    }
+    function removeHost(id) {
+        apiDelete('/' + session + '/api/hosts/' + id, function () {
+            $.notify('Host removed', "success"); loadHosts();
+        });
+    }
+
+    // Modal utilities
+    function showModal(id) {
+        $('#' + id).removeClass('hidden');
+        setTimeout(function () {
+            $('#' + id).removeClass('opacity-0');
+            $('#' + id + ' > div:last-child').removeClass('scale-95').addClass('scale-100');
+        }, 10);
+    }
+
+    function closeModal(id) {
+        $('#' + id).addClass('opacity-0');
+        $('#' + id + ' > div:last-child').addClass('scale-95').removeClass('scale-100');
+        setTimeout(function () {
+            $('#' + id).addClass('hidden');
+        }, 300);
+    }
+
+    $(document).ready(function () {
+        showTab('users');
+        loadProfileSelect();
+    });
+</script>
+{{end}}

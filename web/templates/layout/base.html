@@ -1,0 +1,52 @@
+{{define "web/templates/layout/base.html"}}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>{{.Title}}</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" type="text/css" href="/static/fonts/font-awesome/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="/static/css/pace.light.css" id="pace-css" />
+    <link rel="icon" href="/static/img/favicon.png" />
+    <script src="/static/js/jquery.min.js"></script>
+    <script src="/static/js/notify.min.js"></script>
+    <script src="/static/js/pace.min.js"></script>
+    <meta name="csrf-token" content="{{.CSRFToken}}">
+    <style>
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            /* IE and Edge */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+    <div class="flex flex-col md:flex-row min-h-screen">
+        {{template "menu" .}}
+        <main class="flex-1 p-4 md:p-8 w-full overflow-x-hidden">
+            {{template "content" .}}
+        </main>
+    </div>
+    {{template "web/templates/layout/footer.html" .}}
+    <script>
+        function setTheme(t) {
+            // Theme switching will be handled via Tailwind classes or variables if needed
+            localStorage.setItem('theme', t);
+        }
+    </script>
+</body>
+
+</html>
+{{end}}

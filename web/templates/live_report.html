@@ -1,0 +1,135 @@
+{{template "web/templates/layout/base.html" .}}
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Live Report Header & Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div
+            class="md:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-200 p-8 flex items-center justify-between">
+            <div class="flex items-center gap-5">
+                <div class="w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center text-sky-500 shadow-inner">
+                    <i class="fa fa-bar-chart text-2xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-2xl font-black text-slate-800 tracking-tight">Live Session Monitoring</h3>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="relative flex h-2 w-2">
+                            <span
+                                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest">Real-time updates
+                            every 30s</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="monthlyTotals"
+            class="bg-emerald-500 rounded-3xl shadow-xl shadow-emerald-900/20 p-8 flex flex-col justify-center">
+            <p class="text-[10px] font-black text-white/70 uppercase tracking-widest mb-1">Current Month Revenue</p>
+            <div class="flex items-baseline gap-2 text-white">
+                <span
+                    class="text-xs border rounded px-1.5 py-0.5 border-white/30 font-bold uppercase tracking-tighter">{{.Currency}}</span>
+                <span id="totalIncome" class="text-3xl font-black tracking-tight">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Data Table -->
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50/50 border-b border-slate-100">
+                        <th class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-16">#
+                        </th>
+                        <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Connection
+                            Time</th>
+                        <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">User
+                            Credentials</th>
+                        <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Service
+                            Profile</th>
+                        <th
+                            class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">
+                            Price</th>
+                        <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Validity
+                        </th>
+                        <th class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned
+                            IP</th>
+                    </tr>
+                </thead>
+                <tbody id="liveBody" class="divide-y divide-slate-100">
+                    <tr>
+                        <td colspan="7" class="px-8 py-24 text-center">
+                            <i class="fa fa-spinner fa-spin text-4xl text-sky-500 mb-4 block"></i>
+                            <p class="text-sm font-black text-slate-400 uppercase tracking-widest">Initializing
+                                real-time stream...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="px-8 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic leading-relaxed">System
+                automatically refreshes latest session data to ensure accurate monitoring.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    var session = "{{.Session}}";
+
+    function loadLive() {
+        var d = new Date();
+        var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        var month = months[d.getMonth()] + d.getFullYear();
+
+        $.get('/' + session + '/api/live-report?month=' + month, function (data) {
+            var html = ''; var total = 0;
+            if (!data || data.length === 0) {
+                html = '<tr><td colspan="7" class="px-8 py-20 text-center font-black text-slate-300 uppercase tracking-[0.2em]">No active session data recorded</td></tr>';
+            } else {
+                data.forEach(function (r, i) {
+                    var parts = (r.name || '').split('-|-');
+                    var price = parseFloat(parts[3] || 0) || 0; total += price;
+
+                    html += `
+                    <tr class="hover:bg-slate-50/50 transition-colors group">
+                        <td class="px-8 py-4 text-xs font-black text-slate-400">${i + 1}</td>
+                        <td class="px-4 py-4">
+                            <div class="text-xs font-black text-slate-700">${parts[0] || ''}</div>
+                            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">${parts[1] || ''}</div>
+                        </td>
+                        <td class="px-4 py-4">
+                            <span class="px-3 py-1 bg-white border border-slate-200 shadow-sm rounded-lg text-xs font-black text-slate-700">${parts[2] || ''}</span>
+                        </td>
+                        <td class="px-4 py-4">
+                            <span class="text-xs font-bold text-slate-600">${parts[7] || ''}</span>
+                        </td>
+                        <td class="px-4 py-4 text-right">
+                            <span class="text-sm font-black text-emerald-600">${price.toLocaleString()}</span>
+                        </td>
+                        <td class="px-4 py-4">
+                            <span class="text-[10px] font-black text-slate-500 uppercase">${parts[6] || ''}</span>
+                        </td>
+                        <td class="px-8 py-4">
+                            <div class="font-mono text-xs font-black text-slate-500 flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                                ${parts[4] || '—'}
+                            </div>
+                        </td>
+                    </tr>`;
+                });
+            }
+            $('#liveBody').html(html);
+            $('#totalIncome').text(total.toLocaleString());
+        });
+    }
+
+    $(document).ready(function () {
+        loadLive();
+        setInterval(loadLive, 30000);
+    });
+</script>
+{{end}}

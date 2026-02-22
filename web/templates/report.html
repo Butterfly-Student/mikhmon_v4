@@ -1,0 +1,165 @@
+{{template "web/templates/layout/base.html" .}}
+{{define "content"}}
+<div class="space-y-6">
+    <!-- Report Header & Controls -->
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <div
+            class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div class="flex items-center gap-4">
+                <div
+                    class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 shadow-inner">
+                    <i class="fa fa-money text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-black text-slate-800 tracking-tight">Sales Report</h3>
+                    <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Revenue tracking & Session
+                        history</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex items-center bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
+                    <input type="date" id="report-date"
+                        class="bg-transparent px-4 py-2 text-sm font-bold text-slate-700 outline-none cursor-pointer">
+                    <button onclick="loadReport()"
+                        class="bg-sky-600 hover:bg-sky-700 text-white px-6 py-2 rounded-xl text-sm font-black transition-all active:scale-95 flex items-center gap-2">
+                        <i class="fa fa-search"></i>
+                        <span>Load</span>
+                    </button>
+                </div>
+
+                <div
+                    class="bg-emerald-500 text-white px-6 py-3 rounded-2xl shadow-lg shadow-emerald-900/20 flex flex-col items-end">
+                    <span class="text-[8px] font-black uppercase tracking-widest opacity-80">Total Revenue</span>
+                    <span class="text-lg font-black tracking-tight"><span
+                            class="text-sm border rounded px-1 mr-1 border-white/30">{{.Currency}}</span><span
+                            id="totalIncome">0</span></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50/50 border-b border-slate-100">
+                        <th class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">#</th>
+                        <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date /
+                            Time</th>
+                        <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Username
+                        </th>
+                        <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Profile
+                        </th>
+                        <th
+                            class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">
+                            Price</th>
+                        <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Validity
+                        </th>
+                        <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Device
+                            Info</th>
+                        <th
+                            class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                            Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="reportBody" class="divide-y divide-slate-100">
+                    <tr>
+                        <td colspan="8" class="px-8 py-20 text-center">
+                            <div class="space-y-4">
+                                <div
+                                    class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-300">
+                                    <i class="fa fa-calendar-alt text-2xl"></i>
+                                </div>
+                                <p class="text-sm font-black text-slate-400 uppercase tracking-widest">Select a date
+                                    above to view sales data</p>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="px-8 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Showing daily sales performance
+            </p>
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="text-[10px] text-emerald-600 font-black uppercase tracking-widest">System Live</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var session = "{{.Session}}";
+
+    function formatDate(d) {
+        var dt = new Date(d);
+        var months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        return months[dt.getMonth()] + '/' + String(dt.getDate()).padStart(2, '0') + '/' + dt.getFullYear();
+    }
+
+    function loadReport() {
+        var dt = document.getElementById('report-date').value;
+        if (!dt) { $.notify('Please select a date first', "warn"); return; }
+
+        // Show loading state
+        $('#reportBody').html('<tr><td colspan="8" class="px-8 py-20 text-center"><i class="fa fa-spinner fa-spin text-3xl text-sky-500"></i></td></tr>');
+
+        var day = formatDate(dt);
+        $.get('/' + session + '/api/reports?day=' + encodeURIComponent(day), function (d) {
+            var html = ''; var total = 0;
+            if (!d || d.length === 0) {
+                html = '<tr><td colspan="8" class="px-8 py-20 text-center font-black text-slate-400 uppercase tracking-widest">No records found for this date</td></tr>';
+            } else {
+                d.forEach(function (r, i) {
+                    var p = parseFloat(r.price) || 0; total += p;
+                    html += `
+                    <tr class="hover:bg-slate-50/80 transition-colors group">
+                        <td class="px-8 py-4 text-xs font-black text-slate-400">${i + 1}</td>
+                        <td class="px-4 py-4">
+                            <div class="text-xs font-black text-slate-700">${r.date}</div>
+                            <div class="text-[10px] font-bold text-slate-400 uppercase">${r.time}</div>
+                        </td>
+                        <td class="px-4 py-4">
+                            <span class="px-3 py-1 bg-slate-100 rounded-lg text-xs font-black text-slate-700 group-hover:bg-white border border-transparent group-hover:border-slate-200 transition-all">${r.user}</span>
+                        </td>
+                        <td class="px-4 py-4">
+                            <span class="text-xs font-bold text-slate-600">${r.profile}</span>
+                        </td>
+                        <td class="px-4 py-4 text-right">
+                            <span class="text-sm font-black text-emerald-600">${p.toLocaleString()}</span>
+                        </td>
+                        <td class="px-4 py-4">
+                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-tight">${r.validity}</span>
+                        </td>
+                        <td class="px-4 py-4">
+                            <div class="text-[10px] font-bold text-slate-600">${r.address}</div>
+                            <div class="text-[9px] font-medium text-slate-400">${r.mac}</div>
+                        </td>
+                        <td class="px-8 py-4 text-center">
+                            <button class="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 hover:bg-sky-50 hover:text-sky-500 transition-all">
+                                <i class="fa fa-ellipsis-h text-xs"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+                });
+            }
+            $('#reportBody').html(html);
+            $('#totalIncome').text(total.toLocaleString());
+        }).fail(function () {
+            $.notify('Failed to load report data', "error");
+            $('#reportBody').html('<tr><td colspan="8" class="px-8 py-20 text-center text-rose-500 font-black">Error linking with server</td></tr>');
+        });
+    }
+
+    function setToday() {
+        var t = new Date(); var y = t.getFullYear(); var m = String(t.getMonth() + 1).padStart(2, '0'); var d = String(t.getDate()).padStart(2, '0');
+        document.getElementById('report-date').value = y + '-' + m + '-' + d;
+    }
+
+    $(document).ready(function () {
+        setToday();
+        loadReport();
+    });
+</script>
+{{end}}
