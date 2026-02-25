@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # api:
+  #   build: .
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - SERVER_PORT=8080
+  #     - DATABASE_HOST=postgres
+  #     - DATABASE_PORT=5432
+  #     - DATABASE_USER=mikhmon
+  #     - DATABASE_PASSWORD=mikhmon
+  #     - DATABASE_NAME=mikhmon
+  #     - DATABASE_SSLMODE=disable
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #     - JWT_SECRET=your-jwt-secret-key-change-in-production
+  #     - JWT_EXPIRY=24h
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #   networks:
+  #     - mikhmon
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=mikhmon
+      - POSTGRES_PASSWORD=mikhmon
+      - POSTGRES_DB=mikhmon
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mikhmon
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - mikhmon
+
+volumes:
+  postgres_data:
+
+networks:
+  mikhmon:
+    driver: bridge
