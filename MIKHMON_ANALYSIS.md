@@ -71,26 +71,24 @@ Baik, saya akan membuat dokumentasi lengkap dalam format markdown untuk Anda. Be
 - **Admin Panel** - Pengaturan router dan aplikasi
 - **Expire Monitor Activation** - Setup otomatis expire user
 
----
-
-## 🏗️ Struktur Folder Repository
+# Struktur Direktori `mikhmon_v4`
 
 ```
 mikhmon_v4/
 ├── assets/
-│   ├── css/              # Tema CSS (mikhmon-ui.light.css, dark.css, dll)
-│   ├── fonts/            # Font Awesome icons
-│   ├── img/              # Gambar dan logo
-│   ├── js/               # JavaScript (func.js, jquery.min.js, notify.min.js, dll)
-│   └── qr/               # Library QR Code (qrious.min.js)
+│   ├── css/                  # Tema CSS (mikhmon-ui.light.css, dark.css, dll)
+│   ├── fonts/                # Font Awesome icons
+│   ├── img/                  # Gambar dan logo
+│   ├── js/                   # JavaScript (func.js, jquery.min.js, notify.min.js, dll)
+│   └── qr/                   # Library QR Code (qrious.min.js)
 │
 ├── config/
-│   ├── config.php        # Konfigurasi multi-router/session
-│   ├── connection.php    # Koneksi ke RouterOS API
-│   ├── page.php          # Routing halaman (user_page, admin_page, err_page)
-│   ├── readcfg.php       # Membaca konfigurasi dari file
-│   ├── settheme.php      # Pengaturan tema aplikasi
-│   └── theme.php         # File penyimpanan tema aktif
+│   ├── config.php            # Konfigurasi multi-router/session
+│   ├── connection.php        # Koneksi ke RouterOS API
+│   ├── page.php              # Routing halaman (user_page, admin_page, err_page)
+│   ├── readcfg.php           # Membaca konfigurasi dari file
+│   ├── settheme.php          # Pengaturan tema aplikasi
+│   └── theme.php             # File penyimpanan tema aktif
 │
 ├── core/
 │   ├── routeros_api.class.php    # Class untuk API RouterOS
@@ -100,7 +98,7 @@ mikhmon_v4/
 │   ├── generator_functions.php   # Fungsi generate random string
 │   └── no_cache.php              # Prevent cache headers
 │
-├── get/                  # File untuk AJAX request (data retrieval)
+├── get/                      # File untuk AJAX request (data retrieval)
 │   ├── get_dashboard.php
 │   ├── get_report.php
 │   ├── get_user.php
@@ -114,7 +112,7 @@ mikhmon_v4/
 │   ├── get_traffic.php
 │   └── get_connect.php
 │
-├── post/                 # File untuk memproses POST request
+├── post/                     # File untuk memproses POST request
 │   ├── post_add_user.php
 │   ├── post_update_user.php
 │   ├── post_add_userprofile.php
@@ -126,7 +124,7 @@ mikhmon_v4/
 │   ├── post_a_router.php
 │   └── post_logout.php
 │
-├── view/                 # File halaman UI/interface
+├── view/                     # File halaman UI/interface
 │   ├── dashboard.php
 │   ├── hotspot.php
 │   ├── hotspot_active.php
@@ -139,7 +137,7 @@ mikhmon_v4/
 │   ├── header_html.php
 │   └── menu.php
 │
-├── template/             # Template untuk print voucher
+├── template/                 # Template untuk print voucher
 │   ├── header.default.txt
 │   ├── header.small.txt
 │   ├── header.thermal.txt
@@ -150,10 +148,11 @@ mikhmon_v4/
 │   ├── footer.small.txt
 │   └── footer.thermal.txt
 │
-├── index.php             # File utama routing
-├── robots.txt            # SEO file
-└── README.md             # Dokumentasi
+├── index.php                 # File utama routing
+├── robots.txt                # SEO file
+└── README.md                 # Dokumentasi
 ```
+
 
 ---
 
