@@ -3,7 +3,9 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/irhabi89/mikhmon/internal/infrastructure/auth"
-	"github.com/irhabi89/mikhmon/internal/infrastructure/http/handler"
+	httpHandler "github.com/irhabi89/mikhmon/internal/infrastructure/http/handler"
+	"github.com/irhabi89/mikhmon/internal/infrastructure/http/handler/mikrotik"
+	"github.com/irhabi89/mikhmon/internal/infrastructure/http/handler/mikrotik/ws"
 	"github.com/irhabi89/mikhmon/internal/infrastructure/http/middleware"
 	"go.uber.org/zap"
 )
@@ -11,25 +13,40 @@ import (
 // Router holds all HTTP handlers
 type Router struct {
 	engine           *gin.Engine
-	authHandler      *handler.AuthHandler
-	routerHandler    *handler.RouterHandler
-	hotspotHandler   *handler.HotspotHandler
-	voucherHandler   *handler.VoucherHandler
-	reportHandler    *handler.ReportHandler
-	dashboardHandler *handler.DashboardHandler
-	pingWSHandler    *handler.PingWebSocketHandler
+	authHandler      *httpHandler.AuthHandler
+	routerHandler    *httpHandler.RouterHandler
+	mikrotikHandlers *MikrotikHandlers
+	wsHandlers       *WSHandlers
 	jwtService       *auth.JWTService
+}
+
+// MikrotikHandlers holds all MikroTik handlers
+type MikrotikHandlers struct {
+	Hotspot   *mikrotik.HotspotHandler
+	Voucher   *mikrotik.VoucherHandler
+	Report    *mikrotik.ReportHandler
+	Interface *mikrotik.InterfaceHandler
+	System    *mikrotik.SystemHandler
+	NAT       *mikrotik.NATHandler
+	Queue     *mikrotik.QueueHandler
+	Log       *mikrotik.LogHandler
+	Pool      *mikrotik.PoolHandler
+}
+
+// WSHandlers holds all WebSocket handlers
+type WSHandlers struct {
+	ResourceMonitor *ws.ResourceMonitorHandler
+	TrafficMonitor  *ws.TrafficMonitorHandler
+	QueueMonitor    *ws.QueueMonitorHandler
+	Ping            *ws.PingHandler
 }
 
 // NewRouter creates a new HTTP router
 func NewRouter(
-	authHandler *handler.AuthHandler,
-	routerHandler *handler.RouterHandler,
-	hotspotHandler *handler.HotspotHandler,
-	voucherHandler *handler.VoucherHandler,
-	reportHandler *handler.ReportHandler,
-	dashboardHandler *handler.DashboardHandler,
-	pingWSHandler *handler.PingWebSocketHandler,
+	authHandler *httpHandler.AuthHandler,
+	routerHandler *httpHandler.RouterHandler,
+	mikrotikHandlers *MikrotikHandlers,
+	wsHandlers *WSHandlers,
 	jwtService *auth.JWTService,
 	log *zap.Logger,
 ) *Router {
@@ -37,11 +54,8 @@ func NewRouter(
 		engine:           gin.New(),
 		authHandler:      authHandler,
 		routerHandler:    routerHandler,
-		hotspotHandler:   hotspotHandler,
-		voucherHandler:   voucherHandler,
-		reportHandler:    reportHandler,
-		dashboardHandler: dashboardHandler,
-		pingWSHandler:    pingWSHandler,
+		mikrotikHandlers: mikrotikHandlers,
+		wsHandlers:       wsHandlers,
 		jwtService:       jwtService,
 	}
 
@@ -85,16 +99,33 @@ func (r *Router) setupRoutes() {
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware(r.jwtService))
 		{
+			// Router management
 			r.routerHandler.RegisterRoutes(protected)
-			r.hotspotHandler.RegisterRoutes(protected)
-			r.voucherHandler.RegisterRoutes(protected)
-			r.reportHandler.RegisterRoutes(protected)
-			r.dashboardHandler.RegisterRoutes(protected)
+
+			// MikroTik routes
+			mikrotik := protected.Group("/mikrotik/:router_id")
+			{
+				r.mikrotikHandlers.Hotspot.RegisterRoutes(mikrotik)
+				r.mikrotikHandlers.Voucher.RegisterRoutes(mikrotik)
+				r.mikrotikHandlers.Report.RegisterRoutes(mikrotik)
+				r.mikrotikHandlers.Interface.RegisterRoutes(mikrotik)
+				r.mikrotikHandlers.System.RegisterRoutes(mikrotik)
+				r.mikrotikHandlers.NAT.RegisterRoutes(mikrotik)
+				r.mikrotikHandlers.Queue.RegisterRoutes(mikrotik)
+				r.mikrotikHandlers.Log.RegisterRoutes(mikrotik)
+				r.mikrotikHandlers.Pool.RegisterRoutes(mikrotik)
+			}
 		}
 	}
 
-	// WebSocket routes — handler has its own internal key auth
-	r.engine.GET("/api/v1/ws/ping/:router_id", r.pingWSHandler.HandleWebSocket)
+	// WebSocket routes
+	ws := r.engine.Group("/api/v1/ws/mikrotik/monitor")
+	{
+		ws.GET("/resource/:router_id", r.wsHandlers.ResourceMonitor.Handle)
+		ws.GET("/interface/:router_id", r.wsHandlers.TrafficMonitor.Handle)
+		ws.GET("/queue/:router_id", r.wsHandlers.QueueMonitor.Handle)
+		ws.GET("/ping/:router_id", r.wsHandlers.Ping.Handle)
+	}
 }
 
 // GetEngine returns the gin engine

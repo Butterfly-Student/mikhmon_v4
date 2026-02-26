@@ -50,13 +50,13 @@ type SystemClock struct {
 // RouterBoardInfo represents routerboard information
 // Mapping dari: /system/routerboard/print
 type RouterBoardInfo struct {
-	RouterBoard       string `json:"routerboard,omitempty"`
-	Model             string `json:"model,omitempty"`
-	SerialNumber      string `json:"serialNumber,omitempty"`
-	FirmwareType      string `json:"firmwareType,omitempty"`
-	FactoryFirmware   string `json:"factoryFirmware,omitempty"`
-	CurrentFirmware   string `json:"currentFirmware,omitempty"`
-	UpgradeFirmware   string `json:"upgradeFirmware,omitempty"`
+	RouterBoard     string `json:"routerboard,omitempty"`
+	Model           string `json:"model,omitempty"`
+	SerialNumber    string `json:"serialNumber,omitempty"`
+	FirmwareType    string `json:"firmwareType,omitempty"`
+	FactoryFirmware string `json:"factoryFirmware,omitempty"`
+	CurrentFirmware string `json:"currentFirmware,omitempty"`
+	UpgradeFirmware string `json:"upgradeFirmware,omitempty"`
 }
 
 // Interface represents a network interface
@@ -70,28 +70,49 @@ type Interface struct {
 	Running    bool   `json:"running,omitempty"`
 	Disabled   bool   `json:"disabled,omitempty"`
 	Comment    string `json:"comment,omitempty"`
-	RxByte     int64  `json:"rxByte,omitempty"`
-	TxByte     int64  `json:"txByte,omitempty"`
-	RxPacket   int64  `json:"rxPacket,omitempty"`
-	TxPacket   int64  `json:"txPacket,omitempty"`
-	RxDrop     int64  `json:"rxDrop,omitempty"`
-	TxDrop     int64  `json:"txDrop,omitempty"`
-	RxError    int64  `json:"rxError,omitempty"`
-	TxError    int64  `json:"txError,omitempty"`
 }
 
 // TrafficStats represents interface traffic statistics
 // Mapping dari: /interface/monitor-traffic
 type TrafficStats struct {
-	Name               string `json:"name,omitempty"`
-	TxBitsPerSecond    int64  `json:"txBitsPerSecond,omitempty"`
-	RxBitsPerSecond    int64  `json:"rxBitsPerSecond,omitempty"`
-	TxPacketsPerSecond int64  `json:"txPacketsPerSecond,omitempty"`
-	RxPacketsPerSecond int64  `json:"rxPacketsPerSecond,omitempty"`
-	TxDropped          int64  `json:"txDropped,omitempty"`
-	RxDropped          int64  `json:"rxDropped,omitempty"`
-	TxErrors           int64  `json:"txErrors,omitempty"`
-	RxErrors           int64  `json:"rxErrors,omitempty"`
+	Name                  string `json:"name,omitempty"`
+	RxBitsPerSecond       int64  `json:"rxBitsPerSecond,omitempty"`
+	TxBitsPerSecond       int64  `json:"txBitsPerSecond,omitempty"`
+	RxPacketsPerSecond    int64  `json:"rxPacketsPerSecond,omitempty"`
+	TxPacketsPerSecond    int64  `json:"txPacketsPerSecond,omitempty"`
+	FpRxBitsPerSecond     int64  `json:"fpRxBitsPerSecond,omitempty"`
+	FpTxBitsPerSecond     int64  `json:"fpTxBitsPerSecond,omitempty"`
+	FpRxPacketsPerSecond  int64  `json:"fpRxPacketsPerSecond,omitempty"`
+	FpTxPacketsPerSecond  int64  `json:"fpTxPacketsPerSecond,omitempty"`
+	RxDropsPerSecond      int64  `json:"rxDropsPerSecond,omitempty"`
+	TxDropsPerSecond      int64  `json:"txDropsPerSecond,omitempty"`
+	TxQueueDropsPerSecond int64  `json:"txQueueDropsPerSecond,omitempty"`
+	RxErrorsPerSecond     int64  `json:"rxErrorsPerSecond,omitempty"`
+	TxErrorsPerSecond     int64  `json:"txErrorsPerSecond,omitempty"`
+}
+
+// NATRule represents a firewall NAT rule
+// Mapping from: /ip/firewall/nat/print
+type NATRule struct {
+	ID              string `json:"id,omitempty"`
+	Chain           string `json:"chain,omitempty"`
+	Action          string `json:"action,omitempty"`
+	Protocol        string `json:"protocol,omitempty"`
+	SrcAddress      string `json:"srcAddress,omitempty"`
+	DstAddress      string `json:"dstAddress,omitempty"`
+	SrcPort         string `json:"srcPort,omitempty"`
+	DstPort         string `json:"dstPort,omitempty"`
+	InInterface     string `json:"inInterface,omitempty"`
+	OutInterface    string `json:"outInterface,omitempty"`
+	ToAddresses     string `json:"toAddresses,omitempty"`
+	ToPorts         string `json:"toPorts,omitempty"`
+	Disabled        bool   `json:"disabled,omitempty"`
+	Comment         string `json:"comment,omitempty"`
+	Dynamic         bool   `json:"dynamic,omitempty"`
+	Invalid         bool   `json:"invalid,omitempty"`
+	Bytes           int64  `json:"bytes,omitempty"`
+	Packets         int64  `json:"packets,omitempty"`
+	ConnectionBytes int64  `json:"connectionBytes,omitempty"`
 }
 
 // LogEntry represents a log entry

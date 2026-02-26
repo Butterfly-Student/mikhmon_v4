@@ -7,6 +7,7 @@ type VoucherGenerateRequest struct {
 	Quantity     int    `json:"quantity" validate:"required,min=1,max=500"`
 	Server       string `json:"server,omitempty" validate:"max=50"`
 	Mode         string `json:"mode" validate:"required,oneof=vc up"` // vc = voucher, up = username/password
+	Gencode      string `json:"gencode,omitempty" validate:"max=10"`
 	NameLength   int    `json:"nameLength" validate:"required,min=3,max=12"`
 	Prefix       string `json:"prefix,omitempty" validate:"max=20"`
 	CharacterSet string `json:"characterSet" validate:"required,oneof=lower upper upplow lower1 upper1 upplow1 mix mix1 mix2 num"`
@@ -28,11 +29,11 @@ type Voucher struct {
 
 // PrintVoucherRequest represents a request to print vouchers
 type PrintVoucherRequest struct {
-	RouterID    string   `json:"routerId" validate:"required"`
-	TemplateID  string   `json:"templateId,omitempty"`
-	IDs         []string `json:"ids,omitempty"`         // Print by user IDs
-	Comment     string   `json:"comment,omitempty"`     // Print by comment (batch)
-	Profile     string   `json:"profile,omitempty"`     // Print by profile
+	RouterID   string   `json:"routerId" validate:"required"`
+	TemplateID string   `json:"templateId,omitempty"`
+	IDs        []string `json:"ids,omitempty"`     // Print by user IDs
+	Comment    string   `json:"comment,omitempty"` // Print by comment (batch)
+	Profile    string   `json:"profile,omitempty"` // Print by profile
 }
 
 // PrintVoucherResponse represents a print voucher response

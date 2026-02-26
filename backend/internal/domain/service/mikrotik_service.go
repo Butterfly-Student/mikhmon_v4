@@ -4,8 +4,9 @@ import (
 	"context"
 
 	"github.com/go-routeros/routeros/v3"
-	"github.com/irhabi89/mikhmon/internal/domain/entity"
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
+	"github.com/irhabi89/mikhmon/internal/domain/entity"
+	"github.com/irhabi89/mikhmon/internal/infrastructure/mikrotik"
 )
 
 // MikrotikService defines the interface for MikroTik API operations
@@ -26,6 +27,11 @@ type MikrotikService interface {
 	// Interfaces & Traffic
 	GetInterfaces(ctx context.Context, client *routeros.Client) ([]*dto.Interface, error)
 	MonitorTraffic(ctx context.Context, client *routeros.Client, iface string) (*dto.TrafficStats, error)
+
+	// Real-time Streaming Monitoring ( menggunakan ListenArgsContext )
+	StartQueueStatsListen(ctx context.Context, router *entity.Router, cfg mikrotik.QueueStatsConfig, resultChan chan<- mikrotik.QueueStats) (func() error, error)
+	StartTrafficMonitorListen(ctx context.Context, router *entity.Router, interfaceName string, resultChan chan<- mikrotik.TrafficMonitorStats) (func() error, error)
+	StartSystemResourceMonitorListen(ctx context.Context, router *entity.Router, resultChan chan<- mikrotik.SystemResourceMonitorStats) (func() error, error)
 
 	// Hotspot Users
 	GetHotspotUsers(ctx context.Context, client *routeros.Client, profile string) ([]*dto.HotspotUser, error)

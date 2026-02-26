@@ -7,9 +7,9 @@ export interface ApiRequest {
   requestTime: Date
   responseTime?: Date
   duration?: number
-  requestHeaders?: Record<string, string>
+  requestHeaders?: Record<string, unknown>
   requestData?: unknown
-  responseHeaders?: Record<string, string>
+  responseHeaders?: Record<string, unknown>
   responseData?: unknown
   error?: string
 }

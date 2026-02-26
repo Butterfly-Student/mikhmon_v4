@@ -305,7 +305,8 @@ func (c *Client) ResetHotspotUserCounters(ctx context.Context, router *entity.Ro
 	return err
 }
 
-// GetHotspotUsersCount retrieves the count of hotspot users
+// GetHotspotUsersCount retrieves the count of hotspot users.
+// Count is reduced by 1 to exclude the admin user, matching MIKHMON PHP original behavior.
 func (c *Client) GetHotspotUsersCount(ctx context.Context, router *entity.Router) (int, error) {
 	client, err := c.getClient(router)
 	if err != nil {
@@ -318,7 +319,12 @@ func (c *Client) GetHotspotUsersCount(ctx context.Context, router *entity.Router
 	}
 
 	if len(reply.Re) > 0 {
-		return int(parseInt(reply.Re[0].Map["ret"])), nil
+		// Subtract 1 to exclude the admin user (matching MIKHMON original behavior)
+		count := int(parseInt(reply.Re[0].Map["ret"])) - 1
+		if count < 0 {
+			count = 0
+		}
+		return count, nil
 	}
 
 	return 0, nil

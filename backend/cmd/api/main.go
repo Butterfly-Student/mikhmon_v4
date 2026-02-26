@@ -15,10 +15,13 @@ import (
 	"github.com/irhabi89/mikhmon/internal/infrastructure/database"
 	httpInfra "github.com/irhabi89/mikhmon/internal/infrastructure/http"
 	"github.com/irhabi89/mikhmon/internal/infrastructure/http/handler"
+	"github.com/irhabi89/mikhmon/internal/infrastructure/http/handler/mikrotik"
+	"github.com/irhabi89/mikhmon/internal/infrastructure/http/handler/mikrotik/ws"
 	"github.com/irhabi89/mikhmon/internal/infrastructure/logger"
-	"github.com/irhabi89/mikhmon/internal/infrastructure/mikrotik"
+	mikrotikInfra "github.com/irhabi89/mikhmon/internal/infrastructure/mikrotik"
 	"github.com/irhabi89/mikhmon/internal/infrastructure/repository/postgres"
 	"github.com/irhabi89/mikhmon/internal/usecase"
+	mikrotikUsecase "github.com/irhabi89/mikhmon/internal/usecase/mikrotik"
 	"go.uber.org/zap"
 )
 
@@ -26,7 +29,7 @@ func main() {
 	// --- 1. Init Logger (must be first) ---
 	logger.FromEnv()
 	log := logger.Log
-	defer log.Sync() //nolint:errcheck
+	defer log.Sync()
 
 	// --- 2. Load configuration ---
 	cfg, err := config.Load("")
@@ -58,54 +61,81 @@ func main() {
 	routerRepo := postgres.NewRouterRepository(db)
 
 	// --- 6. Initialize services ---
-	mikrotikClient := mikrotik.NewClient(log)
+	mikrotikClient := mikrotikInfra.NewClient(log)
+	hotspotService := mikrotikInfra.NewHotspotService(mikrotikClient, routerRepo)
 	jwtService := auth.NewJWTService(cfg.JWT.Secret, cfg.JWT.AccessTokenTTL)
 
-	// --- 7. Initialize infrastructure services ---
-	hotspotService := mikrotik.NewHotspotService(mikrotikClient, routerRepo)
-
-	// --- 8. Initialize use cases ---
+	// --- 7. Initialize use cases ---
 	authUC := usecase.NewAuthUseCase(adminRepo, jwtService)
 	routerUC := usecase.NewRouterUseCase(routerRepo, mikrotikClient)
-	hotspotUC := usecase.NewHotspotUseCase(hotspotService)
-	voucherUC := usecase.NewVoucherUseCase(routerRepo, hotspotService, nil)
-	reportUC := usecase.NewReportUseCase(routerRepo, mikrotikClient)
-	dashboardUC := usecase.NewDashboardUseCase(routerRepo, mikrotikClient, log)
 
-	// --- 9. Initialize handlers (inject logger) ---
+	// MikroTik use cases
+	hotspotUC := mikrotikUsecase.NewHotspotUseCase(routerRepo, hotspotService, mikrotikClient, log)
+	voucherUC := mikrotikUsecase.NewVoucherUseCase(routerRepo, hotspotService, nil, log)
+	reportUC := mikrotikUsecase.NewReportUseCase(routerRepo, mikrotikClient, log)
+	interfaceUC := mikrotikUsecase.NewInterfaceUseCase(routerRepo, mikrotikClient, log)
+	systemUC := mikrotikUsecase.NewSystemUseCase(routerRepo, mikrotikClient, log)
+	natUC := mikrotikUsecase.NewNATUseCase(routerRepo, mikrotikClient, log)
+	queueUC := mikrotikUsecase.NewQueueUseCase(routerRepo, mikrotikClient, log)
+	logUC := mikrotikUsecase.NewLogUseCase(routerRepo, mikrotikClient, log)
+	poolUC := mikrotikUsecase.NewPoolUseCase(routerRepo, mikrotikClient, log)
+
+	// --- 8. Initialize handlers (inject logger) ---
 	authHandler := handler.NewAuthHandler(authUC, log)
 	routerHandler := handler.NewRouterHandler(routerUC, log)
-	hotspotHandler := handler.NewHotspotHandler(hotspotUC, log)
-	voucherHandler := handler.NewVoucherHandler(voucherUC, log)
-	reportHandler := handler.NewReportHandler(reportUC, log)
-	dashboardHandler := handler.NewDashboardHandler(dashboardUC, log)
-	pingWSHandler := handler.NewPingWebSocketHandler(routerRepo, mikrotikClient, cfg.InternalWSKey, log)
 
-	// --- 10. Setup HTTP router ---
+	// MikroTik handlers
+	hotspotHandler := mikrotik.NewHotspotHandler(hotspotUC, log)
+	voucherHandler := mikrotik.NewVoucherHandler(voucherUC, log)
+	reportHandler := mikrotik.NewReportHandler(reportUC, log)
+	interfaceHandler := mikrotik.NewInterfaceHandler(interfaceUC, log)
+	systemHandler := mikrotik.NewSystemHandler(systemUC, log)
+	natHandler := mikrotik.NewNATHandler(natUC, log)
+	queueHandler := mikrotik.NewQueueHandler(queueUC, log)
+	logHandler := mikrotik.NewLogHandler(logUC, log)
+	poolHandler := mikrotik.NewPoolHandler(poolUC, log)
+
+	// WebSocket handlers
+	resourceMonitorHandler := ws.NewResourceMonitorHandler(routerRepo, mikrotikClient, cfg.InternalWSKey, log)
+	trafficMonitorHandler := ws.NewTrafficMonitorHandler(routerRepo, mikrotikClient, cfg.InternalWSKey, log)
+	queueMonitorHandler := ws.NewQueueMonitorHandler(routerRepo, mikrotikClient, cfg.InternalWSKey, log)
+	pingHandler := ws.NewPingHandler(routerRepo, mikrotikClient, cfg.InternalWSKey, log)
+
+	// --- 9. Setup HTTP router ---
 	router := httpInfra.NewRouter(
 		authHandler,
 		routerHandler,
-		hotspotHandler,
-		voucherHandler,
-		reportHandler,
-		dashboardHandler,
-		pingWSHandler,
+		&httpInfra.MikrotikHandlers{
+			Hotspot:   hotspotHandler,
+			Voucher:   voucherHandler,
+			Report:    reportHandler,
+			Interface: interfaceHandler,
+			System:    systemHandler,
+			NAT:       natHandler,
+			Queue:     queueHandler,
+			Log:       logHandler,
+			Pool:      poolHandler,
+		},
+		&httpInfra.WSHandlers{
+			ResourceMonitor: resourceMonitorHandler,
+			TrafficMonitor:  trafficMonitorHandler,
+			QueueMonitor:    queueMonitorHandler,
+			Ping:            pingHandler,
+		},
 		jwtService,
 		log,
 	)
 
-	// --- 11. Create HTTP server ---
-	// ReadTimeout/WriteTimeout di-set 0 agar WebSocket tidak di-terminasi.
-	// WebSocket keepalive dikelola sendiri oleh gorilla/websocket.
+	// --- 10. Create HTTP server ---
 	srv := &http.Server{
-		Addr:        fmt.Sprintf(":%s", cfg.Server.Port),
-		Handler:     router.GetEngine(),
-		ReadTimeout: 0, // Disable: required for WebSocket
-		WriteTimeout: 0, // Disable: required for WebSocket
-		IdleTimeout: cfg.Server.IdleTimeout,
+		Addr:         fmt.Sprintf(":%s", cfg.Server.Port),
+		Handler:      router.GetEngine(),
+		ReadTimeout:  0,
+		WriteTimeout: 0,
+		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
 
-	// --- 12. Start server ---
+	// --- 11. Start server ---
 	go func() {
 		log.Info("Server starting", zap.String("port", cfg.Server.Port))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -113,7 +143,7 @@ func main() {
 		}
 	}()
 
-	// --- 13. Graceful shutdown ---
+	// --- 12. Graceful shutdown ---
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit

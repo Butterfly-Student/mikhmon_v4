@@ -1,4 +1,5 @@
 // Dashboard Page
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
@@ -13,13 +14,16 @@ import {
   Zap,
   Thermometer,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  Gauge,
+  Network
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 import { StatCard } from '../components/common/StatCard'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { QueueMonitor, InterfaceMonitor } from '../components/monitor'
 import { dashboardApi } from '../api/dashboard'
 import { useRouterStore } from '../stores/routerStore'
 import { toggleApiDebug } from '../api/axios'
@@ -39,7 +43,10 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 }
 }
 
+type MonitorTab = 'overview' | 'queue' | 'interface'
+
 export function DashboardPage() {
+  const [activeTab, setActiveTab] = useState<MonitorTab>('overview')
   const selectedRouter = useRouterStore((state) => state.selectedRouter)
   // Ensure routerId is always a string and fallback to '1' only if we don't have a selected router
   const routerId = selectedRouter ? String(selectedRouter.id) : '1'
@@ -140,7 +147,7 @@ export function DashboardPage() {
                 </h3>
                 <p className="text-sm text-danger-700 dark:text-danger-300">
                   {dashboardError?.message || resourcesError?.message || systemInfoError?.message ||
-                  'Failed to connect to MikroTik router. Please verify the router is online and credentials are correct.'}
+                    'Failed to connect to MikroTik router. Please verify the router is online and credentials are correct.'}
                 </p>
                 <div className="mt-3 flex gap-2">
                   <Button
@@ -198,6 +205,33 @@ export function DashboardPage() {
         />
       </motion.div>
 
+      {/* Monitor Tabs */}
+      <motion.div variants={itemVariants} className="border-b border-gray-200 dark:border-dark-700">
+        <div className="flex gap-1">
+          {[
+            { id: 'overview', label: 'Overview', icon: Activity },
+            { id: 'queue', label: 'Queue Monitor', icon: Gauge },
+            { id: 'interface', label: 'Interface Monitor', icon: Network },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as MonitorTab)}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
+                ${activeTab === tab.id 
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+      <>
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* System Resources */}
@@ -220,7 +254,7 @@ export function DashboardPage() {
                   <span className="text-sm font-medium">{resources?.cpuLoad ?? 0}%</span>
                 </div>
                 <div className="progress-bar">
-                  <div 
+                  <div
                     className="progress-bar-fill bg-gradient-to-r from-primary-500 to-primary-600"
                     style={{ width: `${resources?.cpuLoad ?? 0}%` }}
                   />
@@ -239,10 +273,10 @@ export function DashboardPage() {
                   </span>
                 </div>
                 <div className="progress-bar">
-                  <div 
+                  <div
                     className="progress-bar-fill bg-gradient-to-r from-secondary-500 to-secondary-600"
-                    style={{ 
-                      width: `${resources?.totalMemory ? ((resources?.totalMemory - (resources?.freeMemory ?? 0)) / resources?.totalMemory * 100) : 0}%` 
+                    style={{
+                      width: `${resources?.totalMemory ? ((resources?.totalMemory - (resources?.freeMemory ?? 0)) / resources?.totalMemory * 100) : 0}%`
                     }}
                   />
                 </div>
@@ -260,10 +294,10 @@ export function DashboardPage() {
                   </span>
                 </div>
                 <div className="progress-bar">
-                  <div 
+                  <div
                     className="progress-bar-fill bg-gradient-to-r from-warning-500 to-warning-600"
-                    style={{ 
-                      width: `${resources?.totalHddSpace ? ((resources?.totalHddSpace - (resources?.freeHddSpace ?? 0)) / resources?.totalHddSpace * 100) : 0}%` 
+                    style={{
+                      width: `${resources?.totalHddSpace ? ((resources?.totalHddSpace - (resources?.freeHddSpace ?? 0)) / resources?.totalHddSpace * 100) : 0}%`
                     }}
                   />
                 </div>
@@ -277,7 +311,9 @@ export function DashboardPage() {
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Voltage</p>
-                    <p className="font-semibold text-gray-900 dark:text-white">{resources?.voltage ?? '-'} V</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">
+                      {dashboardData?.health?.voltage ?? resources?.voltage ?? '-'} V
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -286,7 +322,9 @@ export function DashboardPage() {
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Temperature</p>
-                    <p className="font-semibold text-gray-900 dark:text-white">{resources?.temperature ?? '-'} °C</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">
+                      {dashboardData?.health?.temperature ?? resources?.temperature ?? '-'} °C
+                    </p>
                   </div>
                 </div>
               </div>
@@ -308,7 +346,7 @@ export function DashboardPage() {
                 {[
                   { label: 'Uptime', value: systemInfo?.uptime || dashboardData?.resource?.uptime || '-' },
                   { label: 'Board Name', value: systemInfo?.boardName || dashboardData?.resource?.boardName || '-' },
-                  { label: 'Model', value: systemInfo?.model || '-' },
+                  { label: 'Model', value: systemInfo?.model || dashboardData?.routerBoard?.model || '-' },
                   { label: 'RouterOS', value: systemInfo?.version || dashboardData?.resource?.version || '-' },
                   { label: 'Identity', value: dashboardData?.identity?.name || dashboardData?.routerName || '-' },
                 ].map((item) => (
@@ -354,6 +392,70 @@ export function DashboardPage() {
           </Card>
         </motion.div>
       </div>
+      </>
+      )}
+
+      {activeTab === 'queue' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+        >
+          <QueueMonitor />
+          <Card>
+            <Card.Header>
+              <div className="flex items-center gap-2">
+                <Gauge className="w-5 h-5 text-primary-500" />
+                <h3 className="font-semibold text-gray-900 dark:text-white">Queue Information</h3>
+              </div>
+            </Card.Header>
+            <Card.Body className="space-y-4">
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-2">
+                <p>
+                  Queue monitoring allows you to track bandwidth usage for specific queues in real-time.
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-gray-500">
+                  <li>Select a queue from the dropdown to start monitoring</li>
+                  <li>RX (Download) shows incoming traffic rate</li>
+                  <li>TX (Upload) shows outgoing traffic rate</li>
+                  <li>Rates are updated every second</li>
+                </ul>
+              </div>
+            </Card.Body>
+          </Card>
+        </motion.div>
+      )}
+
+      {activeTab === 'interface' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+        >
+          <InterfaceMonitor />
+          <Card>
+            <Card.Header>
+              <div className="flex items-center gap-2">
+                <Network className="w-5 h-5 text-secondary-500" />
+                <h3 className="font-semibold text-gray-900 dark:text-white">Interface Information</h3>
+              </div>
+            </Card.Header>
+            <Card.Body className="space-y-4">
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-2">
+                <p>
+                  Interface monitoring allows you to track network traffic on specific interfaces in real-time.
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-gray-500">
+                  <li>Select an interface (ether1, wlan1, etc.) to monitor</li>
+                  <li>RX (Download) shows incoming traffic</li>
+                  <li>TX (Upload) shows outgoing traffic</li>
+                  <li>Packets per second (pps) shows packet rate</li>
+                </ul>
+              </div>
+            </Card.Body>
+          </Card>
+        </motion.div>
+      )}
     </motion.div>
   )
 }

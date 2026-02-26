@@ -1,10 +1,10 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { 
-  LayoutDashboard, 
-  Wifi, 
-  Ticket, 
-  BarChart3, 
-  Router, 
+import {
+  LayoutDashboard,
+  Wifi,
+  Ticket,
+  BarChart3,
+  Router,
   Settings,
   LogOut,
   WifiIcon,
@@ -68,7 +68,7 @@ export function Sidebar() {
           {navigation.map((item) => {
             const Icon = item.icon
             const isActive = location.pathname.startsWith(item.href)
-            
+
             return (
               <NavLink
                 key={item.name}

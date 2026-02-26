@@ -1,9 +1,9 @@
 import { api } from './axios'
-import type { Voucher, GenerateVoucherRequest, ApiResponse, HotspotUser } from '../types'
+import type { VoucherBatchResult, GenerateVoucherRequest, ApiResponse, HotspotUser } from '../types'
 
 export const vouchersApi = {
-  generate: async (routerId: string, request: GenerateVoucherRequest): Promise<Voucher[]> => {
-    const { data } = await api.post<ApiResponse<Voucher[]>>(`/vouchers/${routerId}/generate`, request)
+  generate: async (routerId: string, request: GenerateVoucherRequest): Promise<VoucherBatchResult> => {
+    const { data } = await api.post<ApiResponse<VoucherBatchResult>>(`/vouchers/${routerId}/generate`, request)
     if (!data.success || !data.data) {
       throw new Error(data.error || 'Failed to generate vouchers')
     }

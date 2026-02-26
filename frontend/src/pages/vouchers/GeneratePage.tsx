@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -24,10 +24,11 @@ import { useRouterStore } from '../../stores/routerStore'
 import type { Voucher } from '../../types'
 
 const generateSchema = z.object({
-  quantity: z.number().min(1).max(500),
+  quantity: z.coerce.number().min(1).max(500),
   server: z.string().optional(),
   mode: z.enum(['vc', 'up']),
-  nameLength: z.number().min(4).max(8),
+  gencode: z.string().optional(),
+  nameLength: z.coerce.number().min(4).max(8),
   prefix: z.string().optional(),
   characterSet: z.string(),
   profile: z.string().min(1, 'Profile is required'),
@@ -38,12 +39,22 @@ const generateSchema = z.object({
 
 type GenerateForm = z.infer<typeof generateSchema>
 
-const characterSets = [
+const upCharacterSets = [
   { value: 'lower', label: 'abcd (lowercase)' },
   { value: 'upper', label: 'ABCD (uppercase)' },
   { value: 'upplow', label: 'aBcD (mixed case)' },
   { value: 'mix', label: '5ab2c34d (alphanumeric)' },
   { value: 'mix1', label: '5AB2C34D (upper alphanumeric)' },
+  { value: 'mix2', label: '5aB2c34D (mixed alphanumeric)' },
+]
+
+const vcCharacterSets = [
+  { value: 'lower1', label: 'abcd2345 (lower+num)' },
+  { value: 'upper1', label: 'ABCD2345 (upper+num)' },
+  { value: 'upplow1', label: 'aBcD2345 (mix+num)' },
+  { value: 'mix', label: '5ab2c34d (alphanumeric)' },
+  { value: 'mix1', label: '5AB2C34D (upper alphanumeric)' },
+  { value: 'mix2', label: '5aB2c34D (mixed alphanumeric)' },
   { value: 'num', label: '1234 (numbers only)' },
 ]
 
@@ -58,9 +69,10 @@ const nameLengths = [
 export function GeneratePage() {
   const queryClient = useQueryClient()
   const selectedRouter = useRouterStore((state) => state.selectedRouter)
-  const routerId = selectedRouter?.id || '1'
+  const routerId = String(selectedRouter?.id ?? '1')
 
   const [generatedVouchers, setGeneratedVouchers] = useState<Voucher[]>([])
+  const [generatedComment, setGeneratedComment] = useState('')
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
 
   const { data: profiles } = useQuery({
@@ -68,11 +80,17 @@ export function GeneratePage() {
     queryFn: () => hotspotApi.getProfiles(routerId),
   })
 
+  const { data: servers } = useQuery({
+    queryKey: ['hotspot-servers', routerId],
+    queryFn: () => hotspotApi.getServers(routerId),
+  })
+
   const generateMutation = useMutation({
     mutationFn: (data: GenerateForm) => vouchersApi.generate(routerId, data),
-    onSuccess: (data) => {
-      setGeneratedVouchers(data)
-      toast.success(`${data.length} vouchers generated successfully`)
+    onSuccess: (result) => {
+      setGeneratedVouchers(result.vouchers)
+      setGeneratedComment(result.comment)
+      toast.success(`${result.count} vouchers generated successfully`)
       queryClient.invalidateQueries({ queryKey: ['users', routerId] })
     },
     onError: (error: any) => toast.error(error.message),
@@ -82,21 +100,41 @@ export function GeneratePage() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
-  } = useForm<GenerateForm>({
+  } = useForm({
     resolver: zodResolver(generateSchema),
     defaultValues: {
       quantity: 10,
+      server: 'all',
       mode: 'vc',
-      nameLength: 6,
-      characterSet: 'mix',
+      nameLength: 8,
+      characterSet: 'lower1',
+      timeLimit: '3h',
     },
   })
 
   const mode = watch('mode')
+  const characterSet = watch('characterSet')
 
-  const onSubmit = (data: GenerateForm) => {
-    generateMutation.mutate(data)
+  const characterOptions = useMemo(
+    () => (mode === 'up' ? upCharacterSets : vcCharacterSets),
+    [mode]
+  )
+
+  useEffect(() => {
+    const valid = new Set(characterOptions.map((c) => c.value))
+    if (!valid.has(characterSet)) {
+      setValue('characterSet', mode === 'up' ? 'lower' : 'lower1')
+    }
+    // Match legacy behavior when switching modes.
+    setValue('nameLength', mode === 'up' ? 4 : 8)
+  }, [mode, characterSet, characterOptions, setValue])
+
+  const onSubmit = (data: any) => {
+    const parsed = generateSchema.parse(data)
+    const gencode = `${Math.floor(Math.random() * 899) + 101}`
+    generateMutation.mutate({ ...parsed, gencode })
   }
 
   const copyToClipboard = (text: string, index: number) => {
@@ -133,7 +171,7 @@ export function GeneratePage() {
                   type="number"
                   min={1}
                   max={500}
-                  {...register('quantity', { valueAsNumber: true })}
+                  {...register('quantity')}
                   leftIcon={<Users className="w-4 h-4" />}
                 />
                 <Select
@@ -146,11 +184,17 @@ export function GeneratePage() {
                 />
               </div>
 
+              <Select
+                label="Server"
+                options={(servers || ['all']).map((s) => ({ value: s, label: s }))}
+                {...register('server')}
+              />
+
               <div className="grid grid-cols-2 gap-4">
                 <Select
                   label="Name Length"
                   options={nameLengths}
-                  {...register('nameLength', { valueAsNumber: true })}
+                  {...register('nameLength')}
                 />
                 <Input
                   label="Prefix"
@@ -162,7 +206,7 @@ export function GeneratePage() {
 
               <Select
                 label="Character Set"
-                options={characterSets}
+                options={characterOptions}
                 {...register('characterSet')}
               />
 
@@ -246,6 +290,11 @@ export function GeneratePage() {
               </div>
             ) : (
               <div className="space-y-2 max-h-96 overflow-y-auto">
+                {generatedComment && (
+                  <div className="p-2 text-xs rounded bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300">
+                    Batch Comment: {generatedComment}
+                  </div>
+                )}
                 {generatedVouchers.map((voucher, index) => (
                   <div
                     key={index}

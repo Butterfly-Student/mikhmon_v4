@@ -61,11 +61,18 @@ func (h *AuthHandler) GetMe(c *gin.Context) {
 	h.Success(c, user)
 }
 
+// Logout handles logout for stateless JWT mode.
+// Token invalidation/blacklist is not enabled; client should remove token locally.
+func (h *AuthHandler) Logout(c *gin.Context) {
+	h.SuccessWithMessage(c, "Logged out successfully", nil)
+}
+
 // RegisterRoutes registers auth routes
 func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup) {
 	auth := r.Group("/auth")
 	{
 		auth.POST("/login", h.Login)
 		auth.GET("/me", h.GetMe)
+		auth.POST("/logout", h.Logout)
 	}
 }

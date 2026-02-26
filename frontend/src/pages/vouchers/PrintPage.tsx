@@ -23,7 +23,7 @@ const templates = [
 
 export function PrintPage() {
   const selectedRouter = useRouterStore((state) => state.selectedRouter)
-  const routerId = selectedRouter?.id || '1'
+  const routerId = String(selectedRouter?.id ?? '1')
 
   const [searchComment, setSearchComment] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState('default')

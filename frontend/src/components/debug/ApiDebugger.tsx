@@ -218,19 +218,19 @@ export function ApiDebugger() {
                 </div>
 
                 {/* Error */}
-                {selectedRequest.error && (
+                {selectedRequest.error ? (
                   <div className="p-3 bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-800 rounded-lg">
                     <h3 className="text-sm font-semibold text-danger-900 dark:text-danger-100 mb-1">
                       Error
                     </h3>
                     <pre className="text-xs text-danger-700 dark:text-danger-300 whitespace-pre-wrap">
-                      {selectedRequest.error}
+                      {String(selectedRequest.error)}
                     </pre>
                   </div>
-                )}
+                ) : null}
 
                 {/* Request Headers */}
-                {selectedRequest.requestHeaders && (
+                {selectedRequest.requestHeaders ? (
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
                       Request Headers
@@ -239,10 +239,10 @@ export function ApiDebugger() {
                       {JSON.stringify(selectedRequest.requestHeaders, null, 2)}
                     </pre>
                   </div>
-                )}
+                ) : null}
 
                 {/* Request Body */}
-                {selectedRequest.requestData && (
+                {selectedRequest.requestData ? (
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
                       Request Body
@@ -251,10 +251,10 @@ export function ApiDebugger() {
                       {JSON.stringify(selectedRequest.requestData, null, 2)}
                     </pre>
                   </div>
-                )}
+                ) : null}
 
                 {/* Response Headers */}
-                {selectedRequest.responseHeaders && (
+                {selectedRequest.responseHeaders ? (
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
                       Response Headers
@@ -263,10 +263,10 @@ export function ApiDebugger() {
                       {JSON.stringify(selectedRequest.responseHeaders, null, 2)}
                     </pre>
                   </div>
-                )}
+                ) : null}
 
                 {/* Response Body */}
-                {selectedRequest.responseData && (
+                {selectedRequest.responseData ? (
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
                       Response Body
@@ -275,7 +275,7 @@ export function ApiDebugger() {
                       {JSON.stringify(selectedRequest.responseData, null, 2)}
                     </pre>
                   </div>
-                )}
+                ) : null}
 
                 {/* Copy JSON button */}
                 <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-dark-700">
@@ -296,4 +296,3 @@ export function ApiDebugger() {
     </>
   )
 }
-

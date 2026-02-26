@@ -16,7 +16,6 @@ import {
   Filter,
   X,
   UserPlus,
-  AlertCircle,
   AlertTriangle,
   Activity,
 } from 'lucide-react'
@@ -36,6 +35,8 @@ const userSchema = z.object({
   profile: z.string().min(1, 'Profile is required'),
   server: z.string().optional(),
   macAddress: z.string().optional(),
+  timeLimit: z.string().optional(),
+  dataLimit: z.string().optional(),
   comment: z.string().optional(),
 })
 
@@ -65,7 +66,7 @@ export function UsersPage() {
     retry: 2,
   })
 
-  const { data: profiles, error: profilesError } = useQuery({
+  const { data: profiles } = useQuery({
     queryKey: ['profiles', routerId],
     queryFn: () => hotspotApi.getProfiles(routerId),
     enabled: !!selectedRouter,
@@ -146,6 +147,8 @@ export function UsersPage() {
         profile: typeof user.profile === 'string' ? user.profile : user.profile?.name || '',
         server: user.server,
         macAddress: user.macAddress,
+        timeLimit: user.limitUptime || '',
+        dataLimit: '',
         comment: user.comment,
       })
     } else {
@@ -572,8 +575,21 @@ export function UsersPage() {
           />
           <Input
             label="MAC Address"
+            placeholder="AA:BB:CC:DD:EE:FF"
             {...register('macAddress')}
           />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Time Limit"
+              placeholder="mis: 1h, 30m, 1d"
+              {...register('timeLimit')}
+            />
+            <Input
+              label="Data Limit"
+              placeholder="mis: 100M, 1G, 500K"
+              {...register('dataLimit')}
+            />
+          </div>
           <Input
             label="Comment"
             {...register('comment')}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
-	"time"
 
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
 )
@@ -18,16 +17,14 @@ func NewVoucherGenerator() *VoucherGenerator {
 	return &VoucherGenerator{}
 }
 
-// GenerateBatch generates a batch of vouchers
+// GenerateBatch generates a batch of vouchers without comment (caller is responsible for setting comment).
+// The caller (VoucherUseCase.GenerateVouchers) must set the correct comment format: "mode-gencode-date-comment".
 func (g *VoucherGenerator) GenerateBatch(req *dto.VoucherGenerateRequest) []*dto.Voucher {
 	vouchers := make([]*dto.Voucher, 0, req.Quantity)
-	
-	// Generate comment suffix for this batch
-	comment := fmt.Sprintf("%s-%s-%s", req.Mode, time.Now().Format("01.02.06"), req.Comment)
-	
+
 	for i := 0; i < req.Quantity; i++ {
 		var username, password string
-		
+
 		switch req.Mode {
 		case "vc":
 			// Voucher mode: username = password
@@ -38,7 +35,7 @@ func (g *VoucherGenerator) GenerateBatch(req *dto.VoucherGenerateRequest) []*dto
 			username = g.generateUsername(req.Prefix, req.NameLength, req.CharacterSet)
 			password = g.generatePassword(req.NameLength)
 		}
-		
+
 		vouchers = append(vouchers, &dto.Voucher{
 			Username:  username,
 			Password:  password,
@@ -46,10 +43,12 @@ func (g *VoucherGenerator) GenerateBatch(req *dto.VoucherGenerateRequest) []*dto
 			Server:    req.Server,
 			TimeLimit: req.TimeLimit,
 			DataLimit: req.DataLimit,
-			Comment:   comment,
+			// Comment is intentionally empty here; VoucherUseCase sets the correct format:
+			// "mode-gencode-date-comment"
+			Comment: "",
 		})
 	}
-	
+
 	return vouchers
 }
 

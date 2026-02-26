@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -217,6 +218,45 @@ func parseFloat(s string) float64 {
 	}
 	f, _ := strconv.ParseFloat(s, 64)
 	return f
+}
+
+// parseRate parses a rate string with unit (bps, kbps, Mbps, Gbps) to bits per second
+// Examples: "0bps" -> 0, "74.3kbps" -> 74300, "2.2Mbps" -> 2200000, "1Gbps" -> 1000000000
+func parseRate(s string) int64 {
+	if s == "" || s == "0" {
+		return 0
+	}
+
+	// Remove the unit suffix and parse
+	var value float64
+	var unit string
+
+	// Find where the number ends and unit begins
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] >= '0' && s[i] <= '9' || s[i] == '.' {
+			value = parseFloat(s[:i+1])
+			unit = s[i+1:]
+			break
+		}
+	}
+
+	if unit == "" {
+		// No unit found, try to parse as plain number
+		return parseInt(s)
+	}
+
+	switch strings.ToLower(unit) {
+	case "bps":
+		return int64(value)
+	case "kbps":
+		return int64(value * 1000)
+	case "mbps":
+		return int64(value * 1000 * 1000)
+	case "gbps":
+		return int64(value * 1000 * 1000 * 1000)
+	default:
+		return parseInt(s)
+	}
 }
 
 // Helper: parse bool from RouterOS string

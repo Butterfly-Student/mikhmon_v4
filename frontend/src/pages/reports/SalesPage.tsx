@@ -29,7 +29,7 @@ const months = [
 
 export function SalesPage() {
   const selectedRouter = useRouterStore((state) => state.selectedRouter)
-  const routerId = selectedRouter?.id || '1'
+  const routerId = String(selectedRouter?.id ?? '1')
 
   const currentMonth = new Date().getMonth() + 1
   const currentYear = new Date().getFullYear()

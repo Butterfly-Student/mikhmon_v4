@@ -1,4 +1,4 @@
-package handler
+package ws
 
 import (
 	"context"
@@ -16,33 +16,40 @@ import (
 
 // PingCommand from frontend
 type PingCommand struct {
-	Action   string  `json:"action"`   // "start", "stop", "ping"
-	Address  string  `json:"address"`  // target address to ping
-	Interval float64 `json:"interval"` // interval in seconds (default: 1)
-	Count    int     `json:"count"`    // number of pings: 0 = infinite (default: 0)
-	Size     int     `json:"size"`     // packet size in bytes (default: 64)
+	Action   string  `json:"action"`
+	Address  string  `json:"address"`
+	Interval float64 `json:"interval"`
+	Count    int     `json:"count"`
+	Size     int     `json:"size"`
 }
 
-// PingWebSocketHandler handles WebSocket connections for real-time ping
-type PingWebSocketHandler struct {
+// PingResultDTO is data sent to frontend
+type PingResultDTO struct {
+	TimeMs   float64 `json:"timeMs"`
+	Received bool    `json:"received"`
+	Address  string  `json:"address"`
+}
+
+// PingHandler handles WebSocket for real-time ping
+type PingHandler struct {
 	upgrader      websocket.Upgrader
 	routerRepo    repository.RouterRepository
 	mikrotikSvc   *mikrotik.Client
-	internalWSKey string // Internal key for simple auth
+	internalWSKey string
 	log           *zap.Logger
 }
 
-// NewPingWebSocketHandler creates a new WebSocket handler for ping
-func NewPingWebSocketHandler(
+// NewPingHandler creates a new WebSocket handler for ping
+func NewPingHandler(
 	routerRepo repository.RouterRepository,
 	mikrotikSvc *mikrotik.Client,
 	internalWSKey string,
 	log *zap.Logger,
-) *PingWebSocketHandler {
-	return &PingWebSocketHandler{
+) *PingHandler {
+	return &PingHandler{
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
-				return true // Allow any origin
+				return true
 			},
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -50,19 +57,12 @@ func NewPingWebSocketHandler(
 		routerRepo:    routerRepo,
 		mikrotikSvc:   mikrotikSvc,
 		internalWSKey: internalWSKey,
-		log:           log.Named("ping-ws"),
+		log:           log.Named("ws-ping"),
 	}
 }
 
-// PingResultDTO is the data sent to frontend
-type PingResultDTO struct {
-	TimeMs   float64 `json:"timeMs"`
-	Received bool    `json:"received"`
-	Address  string  `json:"address"`
-}
-
-// HandleWebSocket upgrades HTTP to WebSocket and handles bidirectional communication
-func (h *PingWebSocketHandler) HandleWebSocket(c *gin.Context) {
+// Handle handles WebSocket connections
+func (h *PingHandler) Handle(c *gin.Context) {
 	providedKey := c.Query("key")
 
 	if providedKey != h.internalWSKey {
@@ -79,9 +79,8 @@ func (h *PingWebSocketHandler) HandleWebSocket(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid router_id"})
 		return
 	}
-	h.log.Info("WebSocket connection attempt", zap.Uint64("routerID", routerID))
+	h.log.Info("Ping WebSocket connection attempt", zap.Uint64("routerID", routerID))
 
-	// Upgrade to WebSocket
 	conn, err := h.upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		h.log.Error("WebSocket upgrade failed",
@@ -91,13 +90,11 @@ func (h *PingWebSocketHandler) HandleWebSocket(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
-	h.log.Info("WebSocket upgraded", zap.Uint64("routerID", routerID))
+	h.log.Info("Ping WebSocket upgraded", zap.Uint64("routerID", routerID))
 
-	// Setup context
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// WebSocket keepalive
 	conn.SetPongHandler(func(data string) error {
 		return conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	})
@@ -127,7 +124,6 @@ func (h *PingWebSocketHandler) HandleWebSocket(c *gin.Context) {
 
 	router, err := h.routerRepo.GetByID(ctx, uint(routerID))
 	if err != nil {
-		h.log.Error("Router not found", zap.Uint64("routerID", routerID), zap.Error(err))
 		conn.WriteJSON(gin.H{"type": "error", "message": "router not found"})
 		return
 	}
@@ -139,8 +135,6 @@ func (h *PingWebSocketHandler) HandleWebSocket(c *gin.Context) {
 
 	var resultChan chan mikrotik.PingResult
 	var pingCancel func() error
-	// Initialize forwarding context with a no-op cancel so go vet is satisfied.
-	// Real cancel is replaced each time a "start" command is received.
 	forwardingCtx, forwardingCancel := context.WithCancel(ctx)
 	_ = forwardingCtx
 
@@ -152,13 +146,14 @@ func (h *PingWebSocketHandler) HandleWebSocket(c *gin.Context) {
 			pingCancel()
 		}
 	}
-	defer stopForwarding() // always clean up on function exit
+	defer stopForwarding()
 
-	h.log.Info("WebSocket ready, waiting for commands", zap.Uint64("routerID", routerID))
+	h.log.Info("Ping WebSocket ready, waiting for commands", zap.Uint64("routerID", routerID))
+
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			h.log.Info("WebSocket connection closed",
+			h.log.Info("Ping WebSocket connection closed",
 				zap.Uint64("routerID", routerID),
 				zap.Error(err),
 			)
@@ -171,7 +166,7 @@ func (h *PingWebSocketHandler) HandleWebSocket(c *gin.Context) {
 			conn.WriteJSON(gin.H{"type": "error", "message": "invalid command"})
 			continue
 		}
-		h.log.Debug("WebSocket command received",
+		h.log.Debug("Ping WebSocket command received",
 			zap.Uint64("routerID", routerID),
 			zap.String("action", cmd.Action),
 			zap.String("address", cmd.Address),

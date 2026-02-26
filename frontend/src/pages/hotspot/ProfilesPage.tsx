@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Activity,
   RefreshCw,
+  ShieldCheck,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -75,6 +76,20 @@ export function ProfilesPage() {
     retry: 2,
   })
 
+  const { data: addressPools } = useQuery({
+    queryKey: ['address-pools', routerId],
+    queryFn: () => hotspotApi.getAddressPools(routerId),
+    enabled: !!selectedRouter,
+    retry: 2,
+  })
+
+  const { data: parentQueues } = useQuery({
+    queryKey: ['parent-queues', routerId],
+    queryFn: () => hotspotApi.getParentQueues(routerId),
+    enabled: !!selectedRouter,
+    retry: 2,
+  })
+
   // Show error toast if there's a connection error
   if (profilesError && !isLoading) {
     const errorMsg = profilesError instanceof Error ? profilesError.message : 'Failed to load profiles'
@@ -114,6 +129,18 @@ export function ProfilesPage() {
     onError: (error: any) => toast.error(error.message),
   })
 
+  const setupExpireMonitorMutation = useMutation({
+    mutationFn: () => hotspotApi.setupExpireMonitor(routerId),
+    onSuccess: (result) => {
+      if (result.status === 'existing') {
+        toast.success('Expire Monitor already active')
+      } else {
+        toast.success('Expire Monitor activated successfully')
+      }
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to setup Expire Monitor'),
+  })
+
   const {
     register,
     handleSubmit,
@@ -133,10 +160,23 @@ export function ProfilesPage() {
   const expireMode = watch('expireMode')
 
   const onSubmit = (data: ProfileForm) => {
+    const payload: ProfileForm = {
+      ...data,
+      // Match legacy behavior in post_add_userprofile.php
+      name: data.name.trim().replace(/\s+/g, '-'),
+      validity: (data.validity || '').trim().toLowerCase(),
+      price: Number.isFinite(data.price) ? data.price : 0,
+      sellingPrice: Number.isFinite(data.sellingPrice) ? data.sellingPrice : 0,
+      lockUser: data.lockUser || 'Disable',
+      lockServer: data.lockServer || 'Disable',
+      addressPool: data.addressPool || 'none',
+      parentQueue: data.parentQueue || 'none',
+    }
+
     if (editingProfile) {
-      updateMutation.mutate({ id: editingProfile.id, data })
+      updateMutation.mutate({ id: editingProfile.id, data: payload })
     } else {
-      createMutation.mutate(data)
+      createMutation.mutate(payload)
     }
   }
 
@@ -219,6 +259,15 @@ export function ProfilesPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => setupExpireMonitorMutation.mutate()}
+            isLoading={setupExpireMonitorMutation.isPending}
+            leftIcon={<ShieldCheck className="w-4 h-4" />}
+            title="Setup Mikhmon Expire Monitor scheduler"
+          >
+            Set Expire Monitor
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -409,8 +458,22 @@ export function ProfilesPage() {
                 {...register('sharedUsers', { valueAsNumber: true })}
               />
               <Input label="Rate Limit" {...register('rateLimit')} placeholder="e.g. 1M/1M" />
-              <Input label="Address Pool" {...register('addressPool')} />
-              <Input label="Parent Queue" {...register('parentQueue')} />
+              <Select
+                label="Address Pool"
+                options={[
+                  { value: 'none', label: 'none' },
+                  ...((addressPools || []).map((p) => ({ value: p, label: p }))),
+                ]}
+                {...register('addressPool')}
+              />
+              <Select
+                label="Parent Queue"
+                options={[
+                  { value: 'none', label: 'none' },
+                  ...((parentQueues || []).map((q) => ({ value: q, label: q }))),
+                ]}
+                {...register('parentQueue')}
+              />
             </div>
           </div>
 

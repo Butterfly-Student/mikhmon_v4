@@ -21,6 +21,7 @@ import {
   Printer,
   Filter,
   UserPlus,
+  ShieldCheck,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { clsx } from 'clsx'
@@ -66,7 +67,7 @@ export function HotspotPage() {
   const [activeTab, setActiveTab] = useState('users')
   const queryClient = useQueryClient()
   const selectedRouter = useRouterStore((state) => state.selectedRouter)
-  const routerId = selectedRouter?.id || '1'
+  const routerId = String(selectedRouter?.id ?? '1')
 
   // Data queries
   const { data: users, isLoading: usersLoading, refetch: refetchUsers } = useQuery({
@@ -598,6 +599,18 @@ function ProfilesTab({
     onError: (error: any) => toast.error(error.message),
   })
 
+  const setupExpireMonitorMutation = useMutation({
+    mutationFn: () => hotspotApi.setupExpireMonitor(routerId),
+    onSuccess: (result) => {
+      if (result.status === 'existing') {
+        toast.success('Expire Monitor already active')
+      } else {
+        toast.success('Expire Monitor activated successfully')
+      }
+    },
+    onError: (error: any) => toast.error(error.message || 'Failed to setup Expire Monitor'),
+  })
+
   const {
     register,
     handleSubmit,
@@ -670,6 +683,15 @@ function ProfilesTab({
             <Button onClick={() => openModal()} size="sm">
               <UserPlus className="w-4 h-4 mr-1" />
               Add Profile
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              isLoading={setupExpireMonitorMutation.isPending}
+              onClick={() => setupExpireMonitorMutation.mutate()}
+            >
+              <ShieldCheck className="w-4 h-4 mr-1" />
+              Set Expire Monitor
             </Button>
             <Button variant="secondary" size="sm" onClick={() => window.location.href = '/hotspot/users'}>
               <UserPlus className="w-4 h-4 mr-1" />

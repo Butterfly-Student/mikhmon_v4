@@ -129,6 +129,7 @@ type UpdateUserRequest struct {
 	DataLimit       string `json:"dataLimit,omitempty" validate:"max=20"`
 	Comment         string `json:"comment,omitempty" validate:"max=100"`
 	Disabled        bool   `json:"disabled,omitempty"`
+	Reset           bool   `json:"reset,omitempty"`
 }
 
 // RemoveUserRequest represents a request to remove users by comment (for vouchers)

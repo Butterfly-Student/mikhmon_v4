@@ -1,4 +1,4 @@
-package handler
+package mikrotik
 
 import (
 	"net/http"
@@ -6,22 +6,30 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
-	"github.com/irhabi89/mikhmon/internal/usecase"
+	"github.com/irhabi89/mikhmon/internal/infrastructure/http/handler"
+	"github.com/irhabi89/mikhmon/internal/usecase/mikrotik"
 	"go.uber.org/zap"
 )
 
 // VoucherHandler handles voucher generation
 type VoucherHandler struct {
-	BaseHandler
-	voucherUC *usecase.VoucherUseCase
+	handler.BaseHandler
+	voucherUC *mikrotik.VoucherUseCase
 }
 
 // NewVoucherHandler creates a new voucher handler
-func NewVoucherHandler(voucherUC *usecase.VoucherUseCase, log *zap.Logger) *VoucherHandler {
+func NewVoucherHandler(voucherUC *mikrotik.VoucherUseCase, log *zap.Logger) *VoucherHandler {
 	return &VoucherHandler{
-		BaseHandler: BaseHandler{Log: log.Named("voucher")},
+		BaseHandler: handler.BaseHandler{Log: log.Named("voucher")},
 		voucherUC:   voucherUC,
 	}
+}
+
+type CacheVoucherRequest struct {
+	User     string `json:"user" binding:"required"`
+	GComment string `json:"gcomment"`
+	Gencode  string `json:"gencode" binding:"required"`
+	Qty      int    `json:"qty"`
 }
 
 // GenerateVouchers generates batch vouchers
@@ -70,12 +78,42 @@ func (h *VoucherHandler) DeleteVouchers(c *gin.Context) {
 	h.SuccessWithMessage(c, "Vouchers deleted successfully", nil)
 }
 
+// CacheVouchers caches generated vouchers using legacy comment format
+func (h *VoucherHandler) CacheVouchers(c *gin.Context) {
+	routerID, _ := strconv.ParseUint(c.Param("router_id"), 10, 32)
+
+	var req CacheVoucherRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.ErrorWithCode(c, http.StatusBadRequest, handler.ErrCodeValidation, err.Error())
+		return
+	}
+
+	count, comment, users, err := h.voucherUC.CacheGeneratedVouchers(
+		c.Request.Context(),
+		uint(routerID),
+		req.User,
+		req.Gencode,
+		req.GComment,
+	)
+	if err != nil {
+		h.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.Success(c, gin.H{
+		"count":   count,
+		"comment": comment,
+		"users":   users,
+	})
+}
+
 // RegisterRoutes registers voucher routes
 func (h *VoucherHandler) RegisterRoutes(r *gin.RouterGroup) {
-	voucher := r.Group("/vouchers")
+	vouchers := r.Group("/vouchers")
 	{
-		voucher.POST("/:router_id/generate", h.GenerateVouchers)
-		voucher.GET("/:router_id", h.GetVouchers)
-		voucher.DELETE("/:router_id", h.DeleteVouchers)
+		vouchers.POST("/generate", h.GenerateVouchers)
+		vouchers.POST("/cache", h.CacheVouchers)
+		vouchers.GET("", h.GetVouchers)
+		vouchers.DELETE("", h.DeleteVouchers)
 	}
 }

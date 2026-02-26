@@ -43,10 +43,15 @@ export interface HotspotUser {
   uptime?: string;
   bytesIn: number;
   bytesOut: number;
+  packetsIn?: number;
+  packetsOut?: number;
   limitUptime?: string;
+  limitBytesIn?: number;
+  limitBytesOut?: number;
   limitBytesTotal: number;
   comment?: string;
   disabled: boolean;
+  email?: string;
 }
 
 export interface UserProfile {
@@ -114,6 +119,7 @@ export interface GenerateVoucherRequest {
   quantity: number;
   server?: string;
   mode: 'vc' | 'up';
+  gencode?: string;
   nameLength: number;
   prefix?: string;
   characterSet: string;
@@ -121,6 +127,12 @@ export interface GenerateVoucherRequest {
   timeLimit?: string;
   dataLimit?: string;
   comment?: string;
+}
+
+export interface VoucherBatchResult {
+  count: number;
+  comment: string;
+  vouchers: Voucher[];
 }
 
 // Dashboard Types
@@ -147,18 +159,73 @@ export interface SystemResource {
   cpuLoad?: number;
 }
 
+/** System health dari /system/health/print — voltage dan temperature sebagai string dari RouterOS */
+export interface SystemHealth {
+  voltage?: string;
+  temperature?: string;
+  fanSpeed?: string;
+  fanSpeed2?: string;
+  fanSpeed3?: string;
+}
+
+/** Info routerboard dari /system/routerboard/print */
+export interface RouterBoardInfo {
+  routerboard?: string;
+  model?: string;
+  serialNumber?: string;
+  firmwareType?: string;
+  factoryFirmware?: string;
+  currentFirmware?: string;
+  upgradeFirmware?: string;
+}
+
+/** Log entry dari /log/print */
+export interface LogEntry {
+  id?: string;
+  time?: string;
+  topics?: string;
+  message?: string;
+}
+
+/** Network interface dari /interface/print */
+export interface NetworkInterface {
+  id?: string;
+  name?: string;
+  type?: string;
+  mtu?: number;
+  macAddress?: string;
+  running?: boolean;
+  disabled?: boolean;
+  comment?: string;
+  rxByte?: number;
+  txByte?: number;
+  rxPacket?: number;
+  txPacket?: number;
+  rxDrop?: number;
+  txDrop?: number;
+  rxError?: number;
+  txError?: number;
+}
+
 export interface DashboardData {
-  identity?: SystemIdentity;
+  routerId?: number;
   routerName?: string;
+  identity?: SystemIdentity;
   resource?: SystemResource;
+  health?: SystemHealth;
+  routerBoard?: RouterBoardInfo;
   stats?: {
     activeUsers: number;
     totalUsers: number;
   };
-  activeUsers: number;
-  totalUsers: number;
-  monthlyIncome: number;
-  dailyIncome: number;
+  interfaces?: NetworkInterface[];
+  hotspotLogs?: LogEntry[];
+  connectionError?: string;
+  // Legacy flat fields (backward compat dengan dashboard page lama)
+  activeUsers?: number;
+  totalUsers?: number;
+  monthlyIncome?: number;
+  dailyIncome?: number;
 }
 
 export interface SystemResources {
@@ -171,8 +238,10 @@ export interface SystemResources {
   freeHddSpace?: number;
   hddTotal?: number;
   totalHddSpace?: number;
-  voltage?: number | string;
-  temperature?: number | string;
+  /** Voltage dalam bentuk string dari RouterOS (mis: "24.3") */
+  voltage?: string;
+  /** Temperature dalam bentuk string dari RouterOS (mis: "42") */
+  temperature?: string;
   uptime?: string;
   version?: string;
   boardName?: string;
