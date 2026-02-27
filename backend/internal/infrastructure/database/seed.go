@@ -72,10 +72,10 @@ func seedDefaultRouter(db *gorm.DB) error {
 		now := time.Now()
 		router := &entity.Router{
 			Name:        "MikroTik-1",
-			Host:        "192.168.88.1",
+			Host:        "192.168.233.1",
 			Port:        8728,
 			Username:    "admin",
-			Password:    "admin", // Default password, should be changed
+			Password:    "r00t", // Default password, should be changed
 			UseSSL:      false,
 			Timeout:     3,
 			IsActive:    true,

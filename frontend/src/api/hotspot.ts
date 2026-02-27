@@ -18,7 +18,7 @@ export const hotspotApi = {
     if (filter?.profile) params.append('profile', filter.profile)
     if (filter?.comment) params.append('comment', filter.comment)
 
-    const { data } = await api.get<ApiResponse<HotspotUser[]>>(`/hotspot/${routerId}/users?${params}`)
+    const { data } = await api.get<ApiResponse<HotspotUser[]>>(`/mikrotik/${routerId}/users?${params}`)
     if (DEBUG) console.log('[Hotspot API] Users response:', data)
 
     if (!data.success || !data.data) {
@@ -31,7 +31,7 @@ export const hotspotApi = {
 
   getUsersCount: async (routerId: string): Promise<number> => {
     if (DEBUG) console.log('[Hotspot API] Fetching users count for router:', routerId)
-    const { data } = await api.get<ApiResponse<{ totalUsers: number }>>(`/hotspot/${routerId}/users/count`)
+    const { data } = await api.get<ApiResponse<{ totalUsers: number }>>(`/mikrotik/${routerId}/users/count`)
     if (DEBUG) console.log('[Hotspot API] Users count response:', data)
 
     if (!data.success || !data.data) {
@@ -44,7 +44,7 @@ export const hotspotApi = {
 
   getUser: async (routerId: string, userId: string): Promise<HotspotUser> => {
     if (DEBUG) console.log('[Hotspot API] Fetching user:', userId, 'for router:', routerId)
-    const { data } = await api.get<ApiResponse<HotspotUser>>(`/hotspot/${routerId}/users/${userId}`)
+    const { data } = await api.get<ApiResponse<HotspotUser>>(`/mikrotik/${routerId}/users/${userId}`)
     if (DEBUG) console.log('[Hotspot API] User response:', data)
 
     if (!data.success || !data.data) {
@@ -71,7 +71,7 @@ export const hotspotApi = {
       comment: user.comment,
       disabled: user.disabled,
     }
-    const { data } = await api.post<ApiResponse<any>>(`/hotspot/${routerId}/users`, payload)
+    const { data } = await api.post<ApiResponse<any>>(`/mikrotik/${routerId}/users`, payload)
     if (DEBUG) console.log('[Hotspot API] Create user response:', data)
 
     if (!data.success) {
@@ -100,7 +100,7 @@ export const hotspotApi = {
       disabled: user.disabled ?? false,
       reset: user.reset ?? false,
     }
-    const { data } = await api.put<ApiResponse<any>>(`/hotspot/${routerId}/users/${userId}`, payload)
+    const { data } = await api.put<ApiResponse<any>>(`/mikrotik/${routerId}/users/${userId}`, payload)
     if (DEBUG) console.log('[Hotspot API] Update user response:', data)
 
     if (!data.success) {
@@ -113,7 +113,7 @@ export const hotspotApi = {
 
   deleteUser: async (routerId: string, userId: string): Promise<void> => {
     if (DEBUG) console.log('[Hotspot API] Deleting user:', userId, 'for router:', routerId)
-    const { data } = await api.delete<ApiResponse<void>>(`/hotspot/${routerId}/users/${userId}`)
+    const { data } = await api.delete<ApiResponse<void>>(`/mikrotik/${routerId}/users/${userId}`)
     if (DEBUG) console.log('[Hotspot API] Delete user response:', data)
 
     if (!data.success) {
@@ -126,7 +126,7 @@ export const hotspotApi = {
   // Profiles
   getProfiles: async (routerId: string): Promise<UserProfile[]> => {
     if (DEBUG) console.log('[Hotspot API] Fetching profiles for router:', routerId)
-    const { data } = await api.get<ApiResponse<UserProfile[]>>(`/hotspot/${routerId}/profiles`)
+    const { data } = await api.get<ApiResponse<UserProfile[]>>(`/mikrotik/${routerId}/profiles`)
     if (DEBUG) console.log('[Hotspot API] Profiles response:', data)
 
     if (!data.success || !data.data) {
@@ -139,7 +139,7 @@ export const hotspotApi = {
 
   createProfile: async (routerId: string, profile: Partial<UserProfile>): Promise<UserProfile> => {
     if (DEBUG) console.log('[Hotspot API] Creating profile for router:', routerId, 'profile:', profile)
-    const { data } = await api.post<ApiResponse<UserProfile>>(`/hotspot/${routerId}/profiles`, profile)
+    const { data } = await api.post<ApiResponse<UserProfile>>(`/mikrotik/${routerId}/profiles`, profile)
     if (DEBUG) console.log('[Hotspot API] Create profile response:', data)
 
     if (!data.success || !data.data) {
@@ -152,7 +152,7 @@ export const hotspotApi = {
 
   updateProfile: async (routerId: string, profileId: string, profile: Partial<UserProfile>): Promise<UserProfile> => {
     if (DEBUG) console.log('[Hotspot API] Updating profile:', profileId, 'for router:', routerId, 'profile:', profile)
-    const { data } = await api.put<ApiResponse<UserProfile>>(`/hotspot/${routerId}/profiles/${profileId}`, profile)
+    const { data } = await api.put<ApiResponse<UserProfile>>(`/mikrotik/${routerId}/profiles/${profileId}`, profile)
     if (DEBUG) console.log('[Hotspot API] Update profile response:', data)
 
     if (!data.success || !data.data) {
@@ -165,7 +165,7 @@ export const hotspotApi = {
 
   deleteProfile: async (routerId: string, profileId: string): Promise<void> => {
     if (DEBUG) console.log('[Hotspot API] Deleting profile:', profileId, 'for router:', routerId)
-    const { data } = await api.delete<ApiResponse<void>>(`/hotspot/${routerId}/profiles/${profileId}`)
+    const { data } = await api.delete<ApiResponse<void>>(`/mikrotik/${routerId}/profiles/${profileId}`)
     if (DEBUG) console.log('[Hotspot API] Delete profile response:', data)
 
     if (!data.success) {
@@ -178,7 +178,7 @@ export const hotspotApi = {
   // Active Sessions
   getActive: async (routerId: string): Promise<HotspotActive[]> => {
     if (DEBUG) console.log('[Hotspot API] Fetching active sessions for router:', routerId)
-    const { data } = await api.get<ApiResponse<HotspotActive[]>>(`/hotspot/${routerId}/active`)
+    const { data } = await api.get<ApiResponse<HotspotActive[]>>(`/mikrotik/${routerId}/active`)
     if (DEBUG) console.log('[Hotspot API] Active sessions response:', data)
 
     if (!data.success || !data.data) {
@@ -191,7 +191,7 @@ export const hotspotApi = {
 
   deleteActiveSession: async (routerId: string, activeId: string): Promise<void> => {
     if (DEBUG) console.log('[Hotspot API] Deleting active session:', activeId, 'for router:', routerId)
-    const { data } = await api.delete<ApiResponse<void>>(`/hotspot/${routerId}/active/${activeId}`)
+    const { data } = await api.delete<ApiResponse<void>>(`/mikrotik/${routerId}/active/${activeId}`)
     if (DEBUG) console.log('[Hotspot API] Delete active session response:', data)
 
     if (!data.success) {
@@ -204,7 +204,7 @@ export const hotspotApi = {
   // Hosts
   getHosts: async (routerId: string): Promise<HotspotHost[]> => {
     if (DEBUG) console.log('[Hotspot API] Fetching hosts for router:', routerId)
-    const { data } = await api.get<ApiResponse<HotspotHost[]>>(`/hotspot/${routerId}/hosts`)
+    const { data } = await api.get<ApiResponse<HotspotHost[]>>(`/mikrotik/${routerId}/hosts`)
     if (DEBUG) console.log('[Hotspot API] Hosts response:', data)
 
     if (!data.success || !data.data) {
@@ -217,7 +217,7 @@ export const hotspotApi = {
 
   deleteHost: async (routerId: string, hostId: string): Promise<void> => {
     if (DEBUG) console.log('[Hotspot API] Deleting host:', hostId, 'for router:', routerId)
-    const { data } = await api.delete<ApiResponse<void>>(`/hotspot/${routerId}/hosts/${hostId}`)
+    const { data } = await api.delete<ApiResponse<void>>(`/mikrotik/${routerId}/hosts/${hostId}`)
     if (DEBUG) console.log('[Hotspot API] Delete host response:', data)
 
     if (!data.success) {
@@ -230,7 +230,7 @@ export const hotspotApi = {
   // Metadata
   getServers: async (routerId: string): Promise<string[]> => {
     if (DEBUG) console.log('[Hotspot API] Fetching servers for router:', routerId)
-    const { data } = await api.get<ApiResponse<string[]>>(`/hotspot/${routerId}/servers`)
+    const { data } = await api.get<ApiResponse<string[]>>(`/mikrotik/${routerId}/servers`)
     if (DEBUG) console.log('[Hotspot API] Servers response:', data)
 
     if (!data.success || !data.data) {
@@ -243,7 +243,7 @@ export const hotspotApi = {
 
   getAddressPools: async (routerId: string): Promise<string[]> => {
     if (DEBUG) console.log('[Hotspot API] Fetching address pools for router:', routerId)
-    const { data } = await api.get<ApiResponse<string[]>>(`/hotspot/${routerId}/address-pools`)
+    const { data } = await api.get<ApiResponse<string[]>>(`/mikrotik/${routerId}/pools`)
     if (DEBUG) console.log('[Hotspot API] Address pools response:', data)
 
     if (!data.success || !data.data) {
@@ -256,7 +256,7 @@ export const hotspotApi = {
 
   getParentQueues: async (routerId: string): Promise<string[]> => {
     if (DEBUG) console.log('[Hotspot API] Fetching parent queues for router:', routerId)
-    const { data } = await api.get<ApiResponse<string[]>>(`/hotspot/${routerId}/parent-queues`)
+    const { data } = await api.get<ApiResponse<string[]>>(`/mikrotik/${routerId}/queues/parent`)
     if (DEBUG) console.log('[Hotspot API] Parent queues response:', data)
 
     if (!data.success || !data.data) {
@@ -272,7 +272,7 @@ export const hotspotApi = {
     if (DEBUG) console.log('[Hotspot API] Setup expire monitor for router:', routerId)
     const payload = script ? { script } : {}
     const { data } = await api.post<ApiResponse<{ message: string; status: string }>>(
-      `/hotspot/${routerId}/expire-monitor`,
+      `/mikrotik/${routerId}/expire-monitor`,
       payload
     )
     if (DEBUG) console.log('[Hotspot API] Setup expire monitor response:', data)
@@ -287,7 +287,7 @@ export const hotspotApi = {
 
   getExpireMonitorScript: async (routerId: string): Promise<string> => {
     if (DEBUG) console.log('[Hotspot API] Fetching expire monitor script for router:', routerId)
-    const { data } = await api.get<ApiResponse<{ script: string }>>(`/hotspot/${routerId}/expire-monitor/script`)
+    const { data } = await api.get<ApiResponse<{ script: string }>>(`/mikrotik/${routerId}/expire-monitor/script`)
     if (DEBUG) console.log('[Hotspot API] Expire monitor script response:', data)
 
     if (!data.success || !data.data?.script) {

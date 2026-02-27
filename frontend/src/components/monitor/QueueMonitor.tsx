@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Activity, TrendingDown, TrendingUp, RefreshCw } from 'lucide-react'
 import { Card, Button, Select } from '../ui'
 import { useRouterStore } from '../../stores/routerStore'
+import { mikrotikApi } from '../../api/mikrotik'
 
 interface QueueStats {
   name: string
@@ -15,30 +16,39 @@ interface QueueStats {
 export function QueueMonitor() {
   const selectedRouter = useRouterStore((state) => state.selectedRouter)
   const routerId = selectedRouter?.id || '1'
-  
+
   const [queues, setQueues] = useState<string[]>([])
   const [selectedQueue, setSelectedQueue] = useState('')
   const [stats, setStats] = useState<QueueStats | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [isMonitoring, setIsMonitoring] = useState(false)
   const [error, setError] = useState('')
-  
+
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Fetch available queues
   useEffect(() => {
-    // TODO: Fetch queues from API
-    // For now, using dummy data - replace with actual API call
-    setQueues(['queue1', 'queue2', 'default', 'hotspot'])
+    const fetchQueues = async () => {
+      try {
+        if (!routerId) return
+        const queuesData = await mikrotikApi.getAllQueues(routerId.toString())
+        // Adjust depending on the structure of queuesData, assuming objects with a 'name' field
+        const queueNames = queuesData.map((q: any) => q.name || q['.id'])
+        setQueues(queueNames)
+      } catch (err) {
+        console.error('Failed to fetch queues:', err)
+      }
+    }
+    fetchQueues()
   }, [routerId])
 
   const connect = useCallback(() => {
     if (!selectedQueue) return
-    
+
     const wsKey = localStorage.getItem('ws_key') || 'mikhmon-ws-internal-key'
-    const wsUrl = `ws://localhost:8080/api/v1/ws/monitor/queue/${routerId}?key=${wsKey}`
-    
+    const wsUrl = `ws://${window.location.host}/api/v1/ws/mikrotik/monitor/queue/${routerId}?key=${wsKey}`
+
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
 
@@ -46,10 +56,10 @@ export function QueueMonitor() {
       setIsConnected(true)
       setError('')
       // Start monitoring
-      ws.send(JSON.stringify({ 
-        action: 'start', 
+      ws.send(JSON.stringify({
+        action: 'start',
         name: selectedQueue,
-        interval: 1 
+        interval: 1
       }))
       setIsMonitoring(true)
     }

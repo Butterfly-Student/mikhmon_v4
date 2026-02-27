@@ -65,7 +65,7 @@ export function usePingWebSocket(
       : (import.meta.env.VITE_API_URL
         ? import.meta.env.VITE_API_URL.replace(/^https?:\/\//, '')
         : `${window.location.hostname}:8080`)
-    const wsUrl = `${wsProtocol}//${wsHost}/api/v1/ws/ping/${routerId}?key=${internalKey}`
+    const wsUrl = `${wsProtocol}//${wsHost}/api/v1/ws/mikrotik/monitor/ping/${routerId}?key=${internalKey}`
 
     console.log('[WS Ping] Connecting to:', wsUrl)
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Network, RefreshCw, ArrowDown, ArrowUp } from 'lucide-react'
 import { Card, Button, Select } from '../ui'
 import { useRouterStore } from '../../stores/routerStore'
+import { mikrotikApi } from '../../api/mikrotik'
 
 interface InterfaceStats {
   name: string
@@ -15,30 +16,39 @@ interface InterfaceStats {
 export function InterfaceMonitor() {
   const selectedRouter = useRouterStore((state) => state.selectedRouter)
   const routerId = selectedRouter?.id || '1'
-  
+
   const [interfaces, setInterfaces] = useState<string[]>([])
   const [selectedInterface, setSelectedInterface] = useState('')
   const [stats, setStats] = useState<InterfaceStats | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [isMonitoring, setIsMonitoring] = useState(false)
   const [error, setError] = useState('')
-  
+
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Fetch available interfaces
   useEffect(() => {
-    // TODO: Fetch interfaces from API
-    // For now, using common interface names - replace with actual API call
-    setInterfaces(['ether1', 'ether2', 'ether3', 'wlan1', 'wlan2', 'bridge1'])
+    const fetchInterfaces = async () => {
+      try {
+        if (!routerId) return
+        const interfacesData = await mikrotikApi.getInterfaces(routerId.toString())
+        // Assuming interface data contains a 'name' property
+        const interfaceNames = interfacesData.map((i: any) => i.name)
+        setInterfaces(interfaceNames)
+      } catch (err) {
+        console.error('Failed to fetch interfaces:', err)
+      }
+    }
+    fetchInterfaces()
   }, [routerId])
 
   const connect = useCallback(() => {
     if (!selectedInterface) return
-    
+
     const wsKey = localStorage.getItem('ws_key') || 'mikhmon-ws-internal-key'
-    const wsUrl = `ws://localhost:8080/api/v1/ws/monitor/interface/${routerId}?key=${wsKey}`
-    
+    const wsUrl = `ws://${window.location.host}/api/v1/ws/mikrotik/monitor/interface/${routerId}?key=${wsKey}`
+
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
 
@@ -46,10 +56,10 @@ export function InterfaceMonitor() {
       setIsConnected(true)
       setError('')
       // Start monitoring
-      ws.send(JSON.stringify({ 
-        action: 'start', 
+      ws.send(JSON.stringify({
+        action: 'start',
         name: selectedInterface,
-        interval: 1 
+        interval: 1
       }))
       setIsMonitoring(true)
     }

@@ -12,7 +12,7 @@ export const reportsApi = {
     if (filters.year) params.append('year', filters.year)
 
     const { data } = await api.get<ApiResponse<SalesReport[]>>(
-      `/reports/${routerId}/sales?${params}`
+      `/mikrotik/${routerId}/reports/sales?${params}`
     )
     if (!data.success || !data.data) {
       throw new Error(data.error || 'Failed to get sales report')
@@ -29,7 +29,7 @@ export const reportsApi = {
     if (month) params.append('month', month)
     if (year) params.append('year', year)
 
-    const { data } = await api.get<ApiResponse<any>>(`/reports/${routerId}/summary?${params}`)
+    const { data } = await api.get<ApiResponse<any>>(`/mikrotik/${routerId}/reports/summary?${params}`)
     if (!data.success || !data.data) {
       throw new Error(data.error || 'Failed to get summary')
     }
@@ -45,7 +45,7 @@ export const reportsApi = {
     if (filters.month) params.append('month', filters.month)
     if (filters.year) params.append('year', filters.year)
 
-    const response = await api.get(`/reports/${routerId}/export?${params}`, {
+    const response = await api.get(`/mikrotik/${routerId}/reports/export?${params}`, {
       responseType: 'text',
     })
     return response.data
