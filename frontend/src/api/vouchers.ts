@@ -24,4 +24,13 @@ export const vouchersApi = {
       throw new Error(data.error || 'Failed to delete vouchers')
     }
   },
+
+  // POST /mikrotik/:id/vouchers/cache — simpan voucher ke cache sebelum cetak
+  cacheVouchers: async (routerId: string, request: GenerateVoucherRequest): Promise<VoucherBatchResult> => {
+    const { data } = await api.post<ApiResponse<VoucherBatchResult>>(`/mikrotik/${routerId}/vouchers/cache`, request)
+    if (!data.success || !data.data) {
+      throw new Error(data.error || 'Failed to cache vouchers')
+    }
+    return data.data
+  },
 }

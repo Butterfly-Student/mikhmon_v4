@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/irhabi89/mikhmon/internal/domain/dto"
 	"github.com/irhabi89/mikhmon/internal/domain/entity"
 	"github.com/irhabi89/mikhmon/internal/domain/repository"
 	"github.com/irhabi89/mikhmon/internal/infrastructure/mikrotik"
@@ -29,7 +30,7 @@ type QueueMonitorResult struct {
 type QueueMonitorHandler struct {
 	upgrader      websocket.Upgrader
 	routerRepo    repository.RouterRepository
-	mikrotikSvc   *mikrotik.Client
+	mikrotikSvc   *mikrotik.Manager
 	internalWSKey string
 	log           *zap.Logger
 }
@@ -37,7 +38,7 @@ type QueueMonitorHandler struct {
 // NewQueueMonitorHandler creates a new WebSocket handler for queue monitoring
 func NewQueueMonitorHandler(
 	routerRepo repository.RouterRepository,
-	mikrotikSvc *mikrotik.Client,
+	mikrotikSvc *mikrotik.Manager,
 	internalWSKey string,
 	log *zap.Logger,
 ) *QueueMonitorHandler {
@@ -179,6 +180,7 @@ func (h *QueueMonitorHandler) startQueueMonitor(
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	if cmd.Name == "" {
+		cancel()
 		conn.WriteJSON(gin.H{"type": "error", "message": "queue name is required"})
 		return func() {}
 	}
@@ -191,9 +193,24 @@ func (h *QueueMonitorHandler) startQueueMonitor(
 			zap.String("queue", cmd.Name),
 		)
 
-		cfg := mikrotik.DefaultQueueStatsConfig(cmd.Name)
-		resultChan := make(chan mikrotik.QueueStats, 10)
-		cancelFn, err := h.mikrotikSvc.StartQueueStatsListen(ctx, router, cfg, resultChan)
+		connCfg := mikrotik.Config{
+			Host:     router.Host,
+			Port:     router.Port,
+			Username: router.Username,
+			Password: router.Password,
+			UseTLS:   router.UseSSL,
+			Timeout:  time.Duration(router.Timeout) * time.Second,
+		}
+		routerClient, err := h.mikrotikSvc.GetOrConnect(parentCtx, router.Name, connCfg)
+		if err != nil {
+			h.log.Error("Router not connected", zap.String("name", router.Name), zap.Error(err))
+			conn.WriteJSON(gin.H{"type": "error", "message": "router not connected: " + err.Error()})
+			return
+		}
+
+		cfg := dto.DefaultQueueStatsConfig(cmd.Name)
+		resultChan := make(chan dto.QueueStats, 10)
+		cancelFn, err := routerClient.StartQueueStatsListen(ctx, cfg, resultChan)
 		if err != nil {
 			h.log.Error("Failed to start queue monitor", zap.Error(err))
 			conn.WriteJSON(gin.H{"type": "error", "message": "failed to start monitor: " + err.Error()})

@@ -1,14 +1,24 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 
+// Matches ResourceMonitorResult in backend ws/resource_monitor_handler.go
 export interface ResourceStats {
-    cpuUsed: number
-    freeMemory: number
-    totalMemory: number
-    freeHddSpace: number
-    totalHddSpace: number
-    writeSectSinceReboot: number
     uptime: string
-    timestamp: string | Date
+    version: string
+    buildTime: string
+    freeMemory: number           // bytes
+    totalMemory: number          // bytes
+    cpu: string
+    cpuCount: number
+    cpuFrequency: number         // MHz
+    cpuLoad: number              // percentage
+    freeHddSpace: number         // bytes
+    totalHddSpace: number        // bytes
+    writeSectSinceReboot: number
+    writeSectTotal: number
+    badBlocks: number            // percentage
+    architectureName: string
+    boardName: string
+    platform: string
 }
 
 export function useResourceWebSocket(routerId: string | number | undefined) {
@@ -18,11 +28,7 @@ export function useResourceWebSocket(routerId: string | number | undefined) {
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const connect = useCallback(() => {
-        if (!routerId) {
-            setStats(null)
-            setIsConnected(false)
-            return
-        }
+        if (!routerId) return
 
         const internalKey = import.meta.env.VITE_WS_KEY || 'mikhmon-ws-internal-key'
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -47,9 +53,10 @@ export function useResourceWebSocket(routerId: string | number | undefined) {
         ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data)
-                if (data && typeof data.cpuUsed === 'number') {
+                if (data && typeof data.cpuLoad === 'number') {
                     setStats(data as ResourceStats)
                 }
+                console.log('[WS Resource] Received data:', data)
             } catch {
                 // Ignore parse errors
             }
@@ -77,8 +84,15 @@ export function useResourceWebSocket(routerId: string | number | undefined) {
             wsRef.current.close()
         }
         wsRef.current = null
-        setIsConnected(false)
     }, [])
+
+    // Reset state when routerId is absent
+    useEffect(() => {
+        if (!routerId) {
+            setStats(null)
+            setIsConnected(false)
+        }
+    }, [routerId])
 
     useEffect(() => {
         connect()

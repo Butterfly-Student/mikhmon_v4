@@ -4,17 +4,11 @@ import (
 	"context"
 
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
-	"github.com/irhabi89/mikhmon/internal/domain/entity"
 )
 
-// GetHotspotHosts retrieves hotspot hosts
-func (c *Client) GetHotspotHosts(ctx context.Context, router *entity.Router) ([]*dto.HotspotHost, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
-	reply, err := client.RunContext(ctx, "/ip/hotspot/host/print")
+// GetHotspotHosts retrieves hotspot hosts.
+func (c *Client) GetHotspotHosts(ctx context.Context) ([]*dto.HotspotHost, error) {
+	reply, err := c.RunContext(ctx, "/ip/hotspot/host/print")
 	if err != nil {
 		return nil, err
 	}
@@ -39,13 +33,8 @@ func (c *Client) GetHotspotHosts(ctx context.Context, router *entity.Router) ([]
 	return hosts, nil
 }
 
-// RemoveHotspotHost removes a hotspot host
-func (c *Client) RemoveHotspotHost(ctx context.Context, router *entity.Router, id string) error {
-	client, err := c.getClient(router)
-	if err != nil {
-		return err
-	}
-
-	_, err = client.RunContext(ctx, "/ip/hotspot/host/remove", "=.id="+id)
+// RemoveHotspotHost removes a hotspot host.
+func (c *Client) RemoveHotspotHost(ctx context.Context, id string) error {
+	_, err := c.RunContext(ctx, "/ip/hotspot/host/remove", "=.id="+id)
 	return err
 }

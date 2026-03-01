@@ -1,14 +1,15 @@
-package mikrotik
+package mikrotik_test
 
 import (
 	"testing"
 
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
+	"github.com/irhabi89/mikhmon/internal/infrastructure/mikrotik"
 )
 
 // TestVoucherGenerator_GenerateBatch_Quantity verifies correct number of vouchers generated.
 func TestVoucherGenerator_GenerateBatch_Quantity(t *testing.T) {
-	g := NewVoucherGenerator()
+	g := mikrotik.NewVoucherGenerator()
 	req := &dto.VoucherGenerateRequest{
 		Mode:         "vc",
 		Quantity:     5,
@@ -25,7 +26,7 @@ func TestVoucherGenerator_GenerateBatch_Quantity(t *testing.T) {
 
 // TestVoucherGenerator_GenerateBatch_VCMode verifies username == password in vc mode.
 func TestVoucherGenerator_GenerateBatch_VCMode(t *testing.T) {
-	g := NewVoucherGenerator()
+	g := mikrotik.NewVoucherGenerator()
 	req := &dto.VoucherGenerateRequest{
 		Mode:         "vc",
 		Quantity:     3,
@@ -47,7 +48,7 @@ func TestVoucherGenerator_GenerateBatch_VCMode(t *testing.T) {
 
 // TestVoucherGenerator_GenerateBatch_UPMode verifies username != password in up mode.
 func TestVoucherGenerator_GenerateBatch_UPMode(t *testing.T) {
-	g := NewVoucherGenerator()
+	g := mikrotik.NewVoucherGenerator()
 	req := &dto.VoucherGenerateRequest{
 		Mode:         "up",
 		Quantity:     3,
@@ -68,9 +69,8 @@ func TestVoucherGenerator_GenerateBatch_UPMode(t *testing.T) {
 }
 
 // TestVoucherGenerator_GenerateBatch_CommentEmpty verifies GenerateBatch leaves Comment empty.
-// The comment should be set by VoucherUseCase, not by GenerateBatch.
 func TestVoucherGenerator_GenerateBatch_CommentEmpty(t *testing.T) {
-	g := NewVoucherGenerator()
+	g := mikrotik.NewVoucherGenerator()
 	req := &dto.VoucherGenerateRequest{
 		Mode:         "vc",
 		Quantity:     2,
@@ -88,7 +88,7 @@ func TestVoucherGenerator_GenerateBatch_CommentEmpty(t *testing.T) {
 
 // TestVoucherGenerator_Prefix verifies prefix is prepended to username.
 func TestVoucherGenerator_Prefix(t *testing.T) {
-	g := NewVoucherGenerator()
+	g := mikrotik.NewVoucherGenerator()
 	prefix := "TEST-"
 	req := &dto.VoucherGenerateRequest{
 		Mode:         "vc",
@@ -118,14 +118,14 @@ func TestParseDataLimit(t *testing.T) {
 		{"500K", 500 * 1024},
 		{"2G", 2 * 1073741824},
 		{"256M", 256 * 1048576},
-		{"100m", 100 * 1048576}, // case insensitive
+		{"100m", 100 * 1048576},
 		{"1g", 1073741824},
 		{"invalid", 0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := ParseDataLimit(tt.input)
+			got := mikrotik.ParseDataLimit(tt.input)
 			if got != tt.expected {
 				t.Errorf("ParseDataLimit(%q) = %d, want %d", tt.input, got, tt.expected)
 			}

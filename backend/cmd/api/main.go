@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/irhabi89/mikhmon/internal/infrastructure/auth"
+	cache "github.com/irhabi89/mikhmon/internal/infrastructure/cache"
 	"github.com/irhabi89/mikhmon/internal/infrastructure/config"
 	"github.com/irhabi89/mikhmon/internal/infrastructure/database"
 	httpInfra "github.com/irhabi89/mikhmon/internal/infrastructure/http"
@@ -22,6 +23,7 @@ import (
 	"github.com/irhabi89/mikhmon/internal/infrastructure/repository/postgres"
 	"github.com/irhabi89/mikhmon/internal/usecase"
 	mikrotikUsecase "github.com/irhabi89/mikhmon/internal/usecase/mikrotik"
+	"github.com/irhabi89/mikhmon/pkg/pubsub"
 	"go.uber.org/zap"
 )
 
@@ -56,29 +58,40 @@ func main() {
 		log.Fatal("Failed to seed database", zap.Error(err))
 	}
 
-	// --- 5. Initialize repositories ---
+	// --- 5. Initialize Redis (optional — pub-sub disabled if unavailable) ---
+	var ps *pubsub.PubSub
+	if redisClient, err := cache.NewRedis(cfg.Redis); err != nil {
+		log.Warn("Redis unavailable, pub-sub disabled", zap.Error(err))
+	} else {
+		ps = pubsub.New(redisClient.Client())
+	}
+
+	// --- 6. Initialize repositories ---
 	adminRepo := postgres.NewAdminUserRepository(db)
 	routerRepo := postgres.NewRouterRepository(db)
 
 	// --- 6. Initialize services ---
-	mikrotikClient := mikrotikInfra.NewClient(log)
-	hotspotService := mikrotikInfra.NewHotspotService(mikrotikClient, routerRepo)
+	mikrotikManager := mikrotikInfra.NewManager(log)
+	hotspotService := mikrotikInfra.NewHotspotService(mikrotikManager, routerRepo)
 	jwtService := auth.NewJWTService(cfg.JWT.Secret, cfg.JWT.AccessTokenTTL)
 
 	// --- 7. Initialize use cases ---
 	authUC := usecase.NewAuthUseCase(adminRepo, jwtService)
-	routerUC := usecase.NewRouterUseCase(routerRepo, mikrotikClient)
+	routerUC := usecase.NewRouterUseCase(routerRepo, mikrotikManager)
 
 	// MikroTik use cases
-	hotspotUC := mikrotikUsecase.NewHotspotUseCase(routerRepo, hotspotService, mikrotikClient, log)
+	hotspotUC := mikrotikUsecase.NewHotspotUseCase(routerRepo, hotspotService, log)
 	voucherUC := mikrotikUsecase.NewVoucherUseCase(routerRepo, hotspotService, nil, log)
-	reportUC := mikrotikUsecase.NewReportUseCase(routerRepo, mikrotikClient, log)
-	interfaceUC := mikrotikUsecase.NewInterfaceUseCase(routerRepo, mikrotikClient, log)
-	systemUC := mikrotikUsecase.NewSystemUseCase(routerRepo, mikrotikClient, log)
-	natUC := mikrotikUsecase.NewNATUseCase(routerRepo, mikrotikClient, log)
-	queueUC := mikrotikUsecase.NewQueueUseCase(routerRepo, mikrotikClient, log)
-	logUC := mikrotikUsecase.NewLogUseCase(routerRepo, mikrotikClient, log)
-	poolUC := mikrotikUsecase.NewPoolUseCase(routerRepo, mikrotikClient, log)
+	reportUC := mikrotikUsecase.NewReportUseCase(routerRepo, mikrotikManager, log)
+	interfaceUC := mikrotikUsecase.NewInterfaceUseCase(routerRepo, mikrotikManager, log)
+	systemUC := mikrotikUsecase.NewSystemUseCase(routerRepo, mikrotikManager, log)
+	natUC := mikrotikUsecase.NewNATUseCase(routerRepo, mikrotikManager, log)
+	queueUC := mikrotikUsecase.NewQueueUseCase(routerRepo, mikrotikManager, log)
+	logUC := mikrotikUsecase.NewLogUseCase(routerRepo, mikrotikManager, log)
+	poolUC := mikrotikUsecase.NewPoolUseCase(routerRepo, mikrotikManager, log)
+	pppActiveUC := mikrotikUsecase.NewPPPActiveUseCase(routerRepo, mikrotikManager, log)
+	pppProfileUC := mikrotikUsecase.NewPPPProfileUseCase(routerRepo, mikrotikManager, log)
+	pppSecretUC := mikrotikUsecase.NewPPPSecretUseCase(routerRepo, mikrotikManager, log)
 
 	// --- 8. Initialize handlers (inject logger) ---
 	authHandler := handler.NewAuthHandler(authUC, log)
@@ -94,33 +107,53 @@ func main() {
 	queueHandler := mikrotik.NewQueueHandler(queueUC, log)
 	logHandler := mikrotik.NewLogHandler(logUC, log)
 	poolHandler := mikrotik.NewPoolHandler(poolUC, log)
+	pppActiveHandler := mikrotik.NewPPPActiveHandler(pppActiveUC, log)
+	pppProfileHandler := mikrotik.NewPPPProfileHandler(pppProfileUC, log)
+	pppSecretHandler := mikrotik.NewPPPSecretHandler(pppSecretUC, log)
 
 	// WebSocket handlers
-	resourceMonitorHandler := ws.NewResourceMonitorHandler(routerRepo, mikrotikClient, cfg.InternalWSKey, log)
-	trafficMonitorHandler := ws.NewTrafficMonitorHandler(routerRepo, mikrotikClient, cfg.InternalWSKey, log)
-	queueMonitorHandler := ws.NewQueueMonitorHandler(routerRepo, mikrotikClient, cfg.InternalWSKey, log)
-	pingHandler := ws.NewPingHandler(routerRepo, mikrotikClient, cfg.InternalWSKey, log)
+	resourceMonitorHandler := ws.NewResourceMonitorHandler(routerRepo, mikrotikManager, cfg.InternalWSKey, log)
+	trafficMonitorHandler := ws.NewTrafficMonitorHandler(routerRepo, mikrotikManager, cfg.InternalWSKey, log)
+	queueMonitorHandler := ws.NewQueueMonitorHandler(routerRepo, mikrotikManager, cfg.InternalWSKey, log)
+	pingHandler := ws.NewPingHandler(routerRepo, mikrotikManager, cfg.InternalWSKey, log)
+	logMonitorHandler := ws.NewLogMonitorHandler(routerRepo, mikrotikManager, ps, cfg.InternalWSKey, log)
+	hotspotLogMonitorHandler := ws.NewHotspotLogMonitorHandler(routerRepo, mikrotikManager, ps, cfg.InternalWSKey, log)
+	pppLogMonitorHandler := ws.NewPPPLogMonitorHandler(routerRepo, mikrotikManager, ps, cfg.InternalWSKey, log)
+	pppActiveMonitorHandler := ws.NewPPPActiveMonitorHandler(routerRepo, mikrotikManager, cfg.InternalWSKey, log)
+	pppInactiveMonitorHandler := ws.NewPPPInactiveMonitorHandler(routerRepo, mikrotikManager, cfg.InternalWSKey, log)
+	hotspotActiveMonitorHandler := ws.NewHotspotActiveMonitorHandler(routerRepo, mikrotikManager, cfg.InternalWSKey, log)
+	hotspotInactiveMonitorHandler := ws.NewHotspotInactiveMonitorHandler(routerRepo, mikrotikManager, cfg.InternalWSKey, log)
 
 	// --- 9. Setup HTTP router ---
 	router := httpInfra.NewRouter(
 		authHandler,
 		routerHandler,
 		&httpInfra.MikrotikHandlers{
-			Hotspot:   hotspotHandler,
-			Voucher:   voucherHandler,
-			Report:    reportHandler,
-			Interface: interfaceHandler,
-			System:    systemHandler,
-			NAT:       natHandler,
-			Queue:     queueHandler,
-			Log:       logHandler,
-			Pool:      poolHandler,
+			Hotspot:    hotspotHandler,
+			Voucher:    voucherHandler,
+			Report:     reportHandler,
+			Interface:  interfaceHandler,
+			System:     systemHandler,
+			NAT:        natHandler,
+			Queue:      queueHandler,
+			Log:        logHandler,
+			Pool:       poolHandler,
+			PPPActive:  pppActiveHandler,
+			PPPProfile: pppProfileHandler,
+			PPPSecret:  pppSecretHandler,
 		},
 		&httpInfra.WSHandlers{
-			ResourceMonitor: resourceMonitorHandler,
-			TrafficMonitor:  trafficMonitorHandler,
-			QueueMonitor:    queueMonitorHandler,
-			Ping:            pingHandler,
+			ResourceMonitor:   resourceMonitorHandler,
+			TrafficMonitor:    trafficMonitorHandler,
+			QueueMonitor:      queueMonitorHandler,
+			Ping:              pingHandler,
+			LogMonitor:        logMonitorHandler,
+			HotspotLogMonitor: hotspotLogMonitorHandler,
+			PPPLogMonitor:     pppLogMonitorHandler,
+			PPPActiveMonitor:       pppActiveMonitorHandler,
+			PPPInactiveMonitor:     pppInactiveMonitorHandler,
+			HotspotActiveMonitor:   hotspotActiveMonitorHandler,
+			HotspotInactiveMonitor: hotspotInactiveMonitorHandler,
 		},
 		jwtService,
 		log,
@@ -158,7 +191,7 @@ func main() {
 	}
 
 	// Close MikroTik connections
-	mikrotikClient.CloseAll()
+	mikrotikManager.CloseAll()
 
 	// Close database connection
 	sqlDB, err := db.DB()

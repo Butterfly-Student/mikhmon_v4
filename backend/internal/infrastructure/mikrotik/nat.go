@@ -4,17 +4,11 @@ import (
 	"context"
 
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
-	"github.com/irhabi89/mikhmon/internal/domain/entity"
 )
 
 // GetNATRules retrieves firewall NAT rules.
-func (c *Client) GetNATRules(ctx context.Context, router *entity.Router) ([]*dto.NATRule, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
-	reply, err := client.RunContext(ctx, "/ip/firewall/nat/print")
+func (c *Client) GetNATRules(ctx context.Context) ([]*dto.NATRule, error) {
+	reply, err := c.RunContext(ctx, "/ip/firewall/nat/print")
 	if err != nil {
 		return nil, err
 	}

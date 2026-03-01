@@ -2,6 +2,7 @@ package mikrotik
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
@@ -13,14 +14,14 @@ import (
 // NATUseCase handles NAT business logic
 type NATUseCase struct {
 	routerRepo  repository.RouterRepository
-	mikrotikSvc *mikrotik.Client
+	mikrotikSvc *mikrotik.Manager
 	log         *zap.Logger
 }
 
 // NewNATUseCase creates a new NAT use case
 func NewNATUseCase(
 	routerRepo repository.RouterRepository,
-	mikrotikSvc *mikrotik.Client,
+	mikrotikSvc *mikrotik.Manager,
 	log *zap.Logger,
 ) *NATUseCase {
 	if log == nil {
@@ -40,8 +41,13 @@ func (uc *NATUseCase) GetNATRules(ctx context.Context, routerID uint) ([]*dto.NA
 		return nil, err
 	}
 
+	c, err := connectRouter(ctx, uc.mikrotikSvc, router)
+	if err != nil {
+		return nil, fmt.Errorf("router %q not connected: %w", router.Name, err)
+	}
+
 	natCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return uc.mikrotikSvc.GetNATRules(natCtx, router)
+	return c.GetNATRules(natCtx)
 }

@@ -8,24 +8,40 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/irhabi89/mikhmon/internal/domain/dto"
 	"github.com/irhabi89/mikhmon/internal/domain/entity"
 	"github.com/irhabi89/mikhmon/internal/domain/repository"
 	"github.com/irhabi89/mikhmon/internal/infrastructure/mikrotik"
 	"go.uber.org/zap"
 )
 
-// ResourceMonitorResult is sent to frontend
+// ResourceMonitorResult is sent to frontend.
+// Semua field diperbarui setiap detik dari /system/resource/print interval=1s.
 type ResourceMonitorResult struct {
-	CPUUsed    int   `json:"cpuUsed"`
-	FreeMemory int64 `json:"freeMemory"`
-	Timestamp  int64 `json:"timestamp"`
+	Uptime               string  `json:"uptime"`
+	Version              string  `json:"version"`
+	BuildTime            string  `json:"buildTime"`
+	FreeMemory           int64   `json:"freeMemory"`
+	TotalMemory          int64   `json:"totalMemory"`
+	CPU                  string  `json:"cpu"`
+	CPUCount             int     `json:"cpuCount"`
+	CPUFrequency         int     `json:"cpuFrequency"`
+	CPULoad              int     `json:"cpuLoad"`
+	FreeHddSpace         int64   `json:"freeHddSpace"`
+	TotalHddSpace        int64   `json:"totalHddSpace"`
+	WriteSectSinceReboot int64   `json:"writeSectSinceReboot"`
+	WriteSectTotal       int64   `json:"writeSectTotal"`
+	BadBlocks            float64 `json:"badBlocks"`
+	ArchitectureName     string  `json:"architectureName"`
+	BoardName            string  `json:"boardName"`
+	Platform             string  `json:"platform"`
 }
 
 // ResourceMonitorHandler handles WebSocket for /system/resource/monitor
 type ResourceMonitorHandler struct {
 	upgrader      websocket.Upgrader
 	routerRepo    repository.RouterRepository
-	mikrotikSvc   *mikrotik.Client
+	mikrotikSvc   *mikrotik.Manager
 	internalWSKey string
 	log           *zap.Logger
 }
@@ -33,7 +49,7 @@ type ResourceMonitorHandler struct {
 // NewResourceMonitorHandler creates a new WebSocket handler for resource monitoring
 func NewResourceMonitorHandler(
 	routerRepo repository.RouterRepository,
-	mikrotikSvc *mikrotik.Client,
+	mikrotikSvc *mikrotik.Manager,
 	internalWSKey string,
 	log *zap.Logger,
 ) *ResourceMonitorHandler {
@@ -125,40 +141,21 @@ func (h *ResourceMonitorHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	var forwardingCancel context.CancelFunc
-	stopForwarding := func() {
-		if forwardingCancel != nil {
-			forwardingCancel()
-		}
-	}
-	defer stopForwarding()
+	// Auto-start resource monitor immediately — no command needed
+	h.log.Info("Resource monitor WebSocket ready, starting monitor", zap.Uint64("routerID", routerID))
 
+	forwardingCancel := h.startResourceMonitor(ctx, conn, router)
+	defer forwardingCancel()
+
+	// Read loop: only used to detect client disconnect
 	for {
-		_, message, err := conn.ReadMessage()
+		_, _, err := conn.ReadMessage()
 		if err != nil {
-			h.log.Info("WebSocket connection closed",
+			h.log.Info("Resource monitor WebSocket connection closed",
 				zap.Uint64("routerID", routerID),
 				zap.Error(err),
 			)
-			stopForwarding()
 			return
-		}
-
-		var cmd struct {
-			Action string `json:"action"`
-		}
-		if err := conn.ReadJSON(message); err != nil {
-			conn.WriteJSON(gin.H{"type": "error", "message": "invalid command"})
-			continue
-		}
-
-		switch cmd.Action {
-		case "start":
-			stopForwarding()
-			forwardingCancel = h.startResourceMonitor(ctx, conn, router)
-		case "stop":
-			stopForwarding()
-			conn.WriteJSON(gin.H{"type": "status", "status": "stopped"})
 		}
 	}
 }
@@ -177,8 +174,23 @@ func (h *ResourceMonitorHandler) startResourceMonitor(
 			zap.String("host", router.Host),
 		)
 
-		resultChan := make(chan mikrotik.SystemResourceMonitorStats, 10)
-		cancelFn, err := h.mikrotikSvc.StartSystemResourceMonitorListen(ctx, router, resultChan)
+		cfg := mikrotik.Config{
+			Host:     router.Host,
+			Port:     router.Port,
+			Username: router.Username,
+			Password: router.Password,
+			UseTLS:   router.UseSSL,
+			Timeout:  time.Duration(router.Timeout) * time.Second,
+		}
+		routerClient, err := h.mikrotikSvc.GetOrConnect(ctx, router.Name, cfg)
+		if err != nil {
+			h.log.Error("Router not connected", zap.String("name", router.Name), zap.Error(err))
+			conn.WriteJSON(gin.H{"type": "error", "message": "router not connected: " + err.Error()})
+			return
+		}
+
+		resultChan := make(chan dto.SystemResourceMonitorStats, 10)
+		cancelFn, err := routerClient.StartSystemResourceMonitorListen(ctx, resultChan)
 		if err != nil {
 			h.log.Error("Failed to start resource monitor", zap.Error(err))
 			conn.WriteJSON(gin.H{"type": "error", "message": "failed to start monitor: " + err.Error()})
@@ -197,9 +209,23 @@ func (h *ResourceMonitorHandler) startResourceMonitor(
 					return
 				}
 				dto := ResourceMonitorResult{
-					CPUUsed:    result.CPUUsed,
-					FreeMemory: result.FreeMemory,
-					Timestamp:  result.Timestamp.UnixMilli(),
+					Uptime:               result.Uptime,
+					Version:              result.Version,
+					BuildTime:            result.BuildTime,
+					FreeMemory:           result.FreeMemory,
+					TotalMemory:          result.TotalMemory,
+					CPU:                  result.CPU,
+					CPUCount:             result.CPUCount,
+					CPUFrequency:         result.CPUFrequency,
+					CPULoad:              result.CPULoad,
+					FreeHddSpace:         result.FreeHddSpace,
+					TotalHddSpace:        result.TotalHddSpace,
+					WriteSectSinceReboot: result.WriteSectSinceReboot,
+					WriteSectTotal:       result.WriteSectTotal,
+					BadBlocks:            result.BadBlocks,
+					ArchitectureName:     result.ArchitectureName,
+					BoardName:            result.BoardName,
+					Platform:             result.Platform,
 				}
 				if err := conn.WriteJSON(dto); err != nil {
 					h.log.Warn("Failed to write resource monitor result", zap.Error(err))

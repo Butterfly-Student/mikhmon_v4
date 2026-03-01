@@ -1,5 +1,5 @@
 import { api } from './axios'
-import type { SystemResources, SystemInfo, ApiResponse } from '../types'
+import type { SystemResources, SystemInfo, DashboardData, SystemHealth, ApiResponse } from '../types'
 
 const DEBUG = import.meta.env.DEV || localStorage.getItem('debug_dashboard') === 'true'
 
@@ -52,6 +52,48 @@ export const dashboardApi = {
 
     if (!data.success || !data.data) {
       const error = data.error || 'Failed to get routerboard'
+      if (DEBUG) console.error('[Dashboard API] Error:', error)
+      throw new Error(error)
+    }
+    return data.data
+  },
+
+  // GET /mikrotik/:id/system/health
+  getSystemHealth: async (routerId: string): Promise<SystemHealth> => {
+    if (DEBUG) console.log('[Dashboard API] Fetching system health for router:', routerId)
+    const { data } = await api.get<ApiResponse<SystemHealth>>(`/mikrotik/${routerId}/system/health`)
+    if (DEBUG) console.log('[Dashboard API] System health response:', data)
+
+    if (!data.success || !data.data) {
+      const error = data.error || 'Failed to get system health'
+      if (DEBUG) console.error('[Dashboard API] Error:', error)
+      throw new Error(error)
+    }
+    return data.data
+  },
+
+  // GET /mikrotik/:id/system/clock
+  getSystemClock: async (routerId: string): Promise<{ time: string; date: string; timeZoneName: string }> => {
+    if (DEBUG) console.log('[Dashboard API] Fetching system clock for router:', routerId)
+    const { data } = await api.get<ApiResponse<{ time: string; date: string; timeZoneName: string }>>(`/mikrotik/${routerId}/system/clock`)
+    if (DEBUG) console.log('[Dashboard API] System clock response:', data)
+
+    if (!data.success || !data.data) {
+      const error = data.error || 'Failed to get system clock'
+      if (DEBUG) console.error('[Dashboard API] Error:', error)
+      throw new Error(error)
+    }
+    return data.data
+  },
+
+  // GET /mikrotik/:id/dashboard — data lengkap dalam satu request
+  getDashboard: async (routerId: string): Promise<DashboardData> => {
+    if (DEBUG) console.log('[Dashboard API] Fetching dashboard for router:', routerId)
+    const { data } = await api.get<ApiResponse<DashboardData>>(`/mikrotik/${routerId}/dashboard`)
+    if (DEBUG) console.log('[Dashboard API] Dashboard response:', data)
+
+    if (!data.success || !data.data) {
+      const error = data.error || 'Failed to get dashboard data'
       if (DEBUG) console.error('[Dashboard API] Error:', error)
       throw new Error(error)
     }

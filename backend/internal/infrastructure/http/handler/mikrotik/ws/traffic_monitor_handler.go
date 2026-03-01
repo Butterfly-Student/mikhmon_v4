@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/irhabi89/mikhmon/internal/domain/dto"
 	"github.com/irhabi89/mikhmon/internal/domain/entity"
 	"github.com/irhabi89/mikhmon/internal/domain/repository"
 	"github.com/irhabi89/mikhmon/internal/infrastructure/mikrotik"
@@ -35,7 +36,7 @@ type InterfaceMonitorResult struct {
 type TrafficMonitorHandler struct {
 	upgrader      websocket.Upgrader
 	routerRepo    repository.RouterRepository
-	mikrotikSvc   *mikrotik.Client
+	mikrotikSvc   *mikrotik.Manager
 	internalWSKey string
 	log           *zap.Logger
 }
@@ -43,7 +44,7 @@ type TrafficMonitorHandler struct {
 // NewTrafficMonitorHandler creates a new WebSocket handler for traffic monitoring
 func NewTrafficMonitorHandler(
 	routerRepo repository.RouterRepository,
-	mikrotikSvc *mikrotik.Client,
+	mikrotikSvc *mikrotik.Manager,
 	internalWSKey string,
 	log *zap.Logger,
 ) *TrafficMonitorHandler {
@@ -185,6 +186,7 @@ func (h *TrafficMonitorHandler) startTrafficMonitor(
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	if cmd.Name == "" {
+		cancel()
 		conn.WriteJSON(gin.H{"type": "error", "message": "interface name is required"})
 		return func() {}
 	}
@@ -197,8 +199,23 @@ func (h *TrafficMonitorHandler) startTrafficMonitor(
 			zap.String("interface", cmd.Name),
 		)
 
-		resultChan := make(chan mikrotik.TrafficMonitorStats, 10)
-		cancelFn, err := h.mikrotikSvc.StartTrafficMonitorListen(ctx, router, cmd.Name, resultChan)
+		cfg := mikrotik.Config{
+			Host:     router.Host,
+			Port:     router.Port,
+			Username: router.Username,
+			Password: router.Password,
+			UseTLS:   router.UseSSL,
+			Timeout:  time.Duration(router.Timeout) * time.Second,
+		}
+		routerClient, err := h.mikrotikSvc.GetOrConnect(parentCtx, router.Name, cfg)
+		if err != nil {
+			h.log.Error("Router not connected", zap.String("name", router.Name), zap.Error(err))
+			conn.WriteJSON(gin.H{"type": "error", "message": "router not connected: " + err.Error()})
+			return
+		}
+
+		resultChan := make(chan dto.TrafficMonitorStats, 10)
+		cancelFn, err := routerClient.StartTrafficMonitorListen(ctx, cmd.Name, resultChan)
 		if err != nil {
 			h.log.Error("Failed to start traffic monitor", zap.Error(err))
 			conn.WriteJSON(gin.H{"type": "error", "message": "failed to start monitor: " + err.Error()})

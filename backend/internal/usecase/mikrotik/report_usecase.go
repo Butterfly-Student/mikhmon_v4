@@ -14,14 +14,14 @@ import (
 // ReportUseCase handles report business logic
 type ReportUseCase struct {
 	routerRepo  repository.RouterRepository
-	mikrotikSvc *mikrotik.Client
+	mikrotikSvc *mikrotik.Manager
 	log         *zap.Logger
 }
 
 // NewReportUseCase creates a new report use case
 func NewReportUseCase(
 	routerRepo repository.RouterRepository,
-	mikrotikSvc *mikrotik.Client,
+	mikrotikSvc *mikrotik.Manager,
 	log *zap.Logger,
 ) *ReportUseCase {
 	if log == nil {
@@ -41,10 +41,15 @@ func (uc *ReportUseCase) GetSalesReport(ctx context.Context, routerID uint, owne
 		return nil, err
 	}
 
+	c, err := connectRouter(ctx, uc.mikrotikSvc, router)
+	if err != nil {
+		return nil, fmt.Errorf("router %q not connected: %w", router.Name, err)
+	}
+
 	reportCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	reports, err := uc.mikrotikSvc.GetSalesReports(reportCtx, router, owner)
+	reports, err := c.GetSalesReports(reportCtx, owner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sales report from MikroTik: %w", err)
 	}
@@ -59,10 +64,15 @@ func (uc *ReportUseCase) GetSalesReportByDay(ctx context.Context, routerID uint,
 		return nil, err
 	}
 
+	c, err := connectRouter(ctx, uc.mikrotikSvc, router)
+	if err != nil {
+		return nil, fmt.Errorf("router %q not connected: %w", router.Name, err)
+	}
+
 	reportCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	reports, err := uc.mikrotikSvc.GetSalesReportsByDay(reportCtx, router, day)
+	reports, err := c.GetSalesReportsByDay(reportCtx, day)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get daily sales report from MikroTik: %w", err)
 	}

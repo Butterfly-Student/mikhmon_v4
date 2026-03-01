@@ -73,6 +73,9 @@ func (r *RedisClient) Exists(ctx context.Context, key string) bool {
 	return err == nil && n > 0
 }
 
+// Client returns the underlying *redis.Client (needed by pubsub.New).
+func (r *RedisClient) Client() *redis.Client { return r.client }
+
 // Close closes the Redis connection
 func (r *RedisClient) Close() error {
 	return r.client.Close()

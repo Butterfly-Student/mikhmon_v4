@@ -13,27 +13,24 @@ import (
 
 // HotspotUseCase handles hotspot business logic
 type HotspotUseCase struct {
-	routerRepo  repository.RouterRepository
-	hotspotSvc  *mikrotik.HotspotService
-	mikrotikSvc *mikrotik.Client
-	log         *zap.Logger
+	routerRepo repository.RouterRepository
+	hotspotSvc *mikrotik.HotspotService
+	log        *zap.Logger
 }
 
 // NewHotspotUseCase creates a new hotspot use case
 func NewHotspotUseCase(
 	routerRepo repository.RouterRepository,
 	hotspotSvc *mikrotik.HotspotService,
-	mikrotikSvc *mikrotik.Client,
 	log *zap.Logger,
 ) *HotspotUseCase {
 	if log == nil {
 		log = zap.NewNop()
 	}
 	return &HotspotUseCase{
-		routerRepo:  routerRepo,
-		hotspotSvc:  hotspotSvc,
-		mikrotikSvc: mikrotikSvc,
-		log:         log.Named("hotspot-usecase"),
+		routerRepo: routerRepo,
+		hotspotSvc: hotspotSvc,
+		log:        log.Named("hotspot-usecase"),
 	}
 }
 
@@ -201,12 +198,7 @@ func (uc *HotspotUseCase) GetActiveCount(ctx context.Context, routerID uint) (in
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	router, err := uc.routerRepo.GetByID(ctx, routerID)
-	if err != nil {
-		return 0, err
-	}
-
-	count, err := uc.mikrotikSvc.GetHotspotActiveCount(ctx, router)
+	count, err := uc.hotspotSvc.GetActiveCount(ctx, routerID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get active users count from MikroTik: %w", err)
 	}
@@ -218,12 +210,7 @@ func (uc *HotspotUseCase) GetProfileByID(ctx context.Context, routerID uint, pro
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	router, err := uc.routerRepo.GetByID(ctx, routerID)
-	if err != nil {
-		return nil, err
-	}
-
-	profile, err := uc.mikrotikSvc.GetUserProfileByID(ctx, router, profileID)
+	profile, err := uc.hotspotSvc.GetProfileByID(ctx, routerID, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile from MikroTik: %w", err)
 	}
@@ -235,12 +222,7 @@ func (uc *HotspotUseCase) GetProfileByName(ctx context.Context, routerID uint, p
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	router, err := uc.routerRepo.GetByID(ctx, routerID)
-	if err != nil {
-		return nil, err
-	}
-
-	profile, err := uc.mikrotikSvc.GetUserProfileByName(ctx, router, profileName)
+	profile, err := uc.hotspotSvc.GetProfileByName(ctx, routerID, profileName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile from MikroTik: %w", err)
 	}
@@ -262,4 +244,24 @@ func (uc *HotspotUseCase) SetupExpireMonitor(ctx context.Context, routerID uint,
 // GetExpireMonitorScript returns default expire monitor script
 func (uc *HotspotUseCase) GetExpireMonitorScript() string {
 	return mikrotik.NewOnLoginGenerator().GenerateExpireMonitorScript()
+}
+
+// ListenActive starts a streaming subscription to active hotspot sessions.
+// No timeout is applied — the caller controls lifetime via ctx.
+func (uc *HotspotUseCase) ListenActive(
+	ctx context.Context,
+	routerID uint,
+	resultChan chan<- []*dto.HotspotActive,
+) (func() error, error) {
+	return uc.hotspotSvc.ListenActive(ctx, routerID, resultChan)
+}
+
+// ListenInactive starts a streaming subscription to inactive hotspot users.
+// No timeout is applied — the caller controls lifetime via ctx.
+func (uc *HotspotUseCase) ListenInactive(
+	ctx context.Context,
+	routerID uint,
+	resultChan chan<- []*dto.HotspotUser,
+) (func() error, error) {
+	return uc.hotspotSvc.ListenInactive(ctx, routerID, resultChan)
 }

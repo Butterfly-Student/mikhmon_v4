@@ -14,11 +14,11 @@ export function Card({ className, hover = false, glass = false, children, ...pro
   return (
     <div
       className={cn(
-        'rounded-2xl border border-gray-100 dark:border-dark-700 transition-all duration-300',
-        glass 
-          ? 'glass-strong' 
-          : 'bg-white dark:bg-dark-800 shadow-card',
-        hover && 'hover:shadow-card-hover hover:-translate-y-1',
+        'rounded-xl sm:rounded-2xl border transition-all duration-300',
+        glass
+          ? 'glass-strong'
+          : 'bg-white dark:bg-dark-800 border-gray-100 dark:border-dark-700 shadow-card',
+        hover && 'hover:shadow-card-hover hover:-translate-y-1 cursor-pointer',
         className
       )}
       {...props}
@@ -30,7 +30,13 @@ export function Card({ className, hover = false, glass = false, children, ...pro
 
 Card.Header = function CardHeader({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('px-6 py-4 border-b border-gray-100 dark:border-dark-700', className)} {...props}>
+    <div
+      className={cn(
+        'px-3 py-3 sm:px-5 sm:py-4 border-b border-gray-100 dark:border-dark-700 flex items-center justify-between',
+        className
+      )}
+      {...props}
+    >
       {children}
     </div>
   )
@@ -38,7 +44,7 @@ Card.Header = function CardHeader({ className, children, ...props }: React.HTMLA
 
 Card.Body = function CardBody({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('p-6', className)} {...props}>
+    <div className={cn('p-3 sm:p-5', className)} {...props}>
       {children}
     </div>
   )
@@ -46,7 +52,13 @@ Card.Body = function CardBody({ className, children, ...props }: React.HTMLAttri
 
 Card.Footer = function CardFooter({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('px-6 py-4 border-t border-gray-100 dark:border-dark-700', className)} {...props}>
+    <div
+      className={cn(
+        'px-3 py-3 sm:px-5 sm:py-4 border-t border-gray-100 dark:border-dark-700',
+        className
+      )}
+      {...props}
+    >
       {children}
     </div>
   )

@@ -153,7 +153,7 @@ export function GeneratePage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Generate Vouchers</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Generate Vouchers</h1>
           <p className="text-gray-500 dark:text-gray-400">
             Create hotspot vouchers in batch
           </p>
@@ -240,7 +240,7 @@ export function GeneratePage() {
 
               <Button
                 type="submit"
-                variant="gradient"
+                variant="primary"
                 className="w-full"
                 isLoading={generateMutation.isPending}
                 leftIcon={<Ticket className="w-5 h-5" />}
@@ -335,3 +335,4 @@ export function GeneratePage() {
     </motion.div>
   )
 }
+

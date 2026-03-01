@@ -7,31 +7,24 @@ import (
 	"strings"
 
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
-	"github.com/irhabi89/mikhmon/internal/domain/entity"
 )
 
-// GetSalesReports retrieves sales reports by owner (month)
-// Reports are stored in /system/script with owner field as month identifier
-func (c *Client) GetSalesReports(ctx context.Context, router *entity.Router, owner string) ([]*dto.SalesReport, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
+// GetSalesReports retrieves sales reports by owner (month).
+// Reports are stored in /system/script with owner field as month identifier.
+func (c *Client) GetSalesReports(ctx context.Context, owner string) ([]*dto.SalesReport, error) {
 	args := []string{"/system/script/print"}
 	if owner != "" {
 		args = append(args, "?owner="+owner)
 	}
 
-	reply, err := client.RunContext(ctx, args...)
+	reply, err := c.RunArgsContext(ctx, args)
 	if err != nil {
 		return nil, err
 	}
 
 	reports := make([]*dto.SalesReport, 0, len(reply.Re))
 	for _, re := range reply.Re {
-		report := c.parseSalesReport(re.Map)
-		if report != nil {
+		if report := parseSalesReport(re.Map); report != nil {
 			reports = append(reports, report)
 		}
 	}
@@ -39,27 +32,21 @@ func (c *Client) GetSalesReports(ctx context.Context, router *entity.Router, own
 	return reports, nil
 }
 
-// GetSalesReportsByDay retrieves sales reports by day (source field)
-func (c *Client) GetSalesReportsByDay(ctx context.Context, router *entity.Router, day string) ([]*dto.SalesReport, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
+// GetSalesReportsByDay retrieves sales reports by day (source field).
+func (c *Client) GetSalesReportsByDay(ctx context.Context, day string) ([]*dto.SalesReport, error) {
 	args := []string{"/system/script/print"}
 	if day != "" {
 		args = append(args, "?source="+day)
 	}
 
-	reply, err := client.RunContext(ctx, args...)
+	reply, err := c.RunArgsContext(ctx, args)
 	if err != nil {
 		return nil, err
 	}
 
 	reports := make([]*dto.SalesReport, 0, len(reply.Re))
 	for _, re := range reply.Re {
-		report := c.parseSalesReport(re.Map)
-		if report != nil {
+		if report := parseSalesReport(re.Map); report != nil {
 			reports = append(reports, report)
 		}
 	}
@@ -67,12 +54,10 @@ func (c *Client) GetSalesReportsByDay(ctx context.Context, router *entity.Router
 	return reports, nil
 }
 
-// parseSalesReport parses a sales report from script entry
-// Format name: $date-|-$time-|-$user-|-$price-|-$address-|-$mac-|-$validity-|-$profile-|-$comment
-func (c *Client) parseSalesReport(data map[string]string) *dto.SalesReport {
+// parseSalesReport parses a sales report from a script entry.
+// Name format: $date-|-$time-|-$user-|-$price-|-$address-|-$mac-|-$validity-|-$profile-|-$comment
+func parseSalesReport(data map[string]string) *dto.SalesReport {
 	name := data["name"]
-
-	// Check if this is a Mikhmon report (contains -|- separator)
 	if !strings.Contains(name, "-|-") {
 		return nil
 	}
@@ -105,7 +90,7 @@ func (c *Client) parseSalesReport(data map[string]string) *dto.SalesReport {
 	}
 }
 
-// getPart safely gets array element
+// getPart safely retrieves an element from a slice.
 func getPart(parts []string, index int) string {
 	if index < len(parts) {
 		return parts[index]
@@ -113,16 +98,8 @@ func getPart(parts []string, index int) string {
 	return ""
 }
 
-// AddSalesReport adds a sales report entry
-// Note: This is typically done automatically by the on-login script
-// But can be done manually for testing or corrections
-func (c *Client) AddSalesReport(ctx context.Context, router *entity.Router, report *dto.SalesReport) error {
-	client, err := c.getClient(router)
-	if err != nil {
-		return err
-	}
-
-	// Build script name
+// AddSalesReport adds a sales report entry.
+func (c *Client) AddSalesReport(ctx context.Context, report *dto.SalesReport) error {
 	name := fmt.Sprintf("%s-|-%s-|-%s-|-%.0f-|-%s-|-%s-|-%s-|-%s",
 		report.Date,
 		report.Time,
@@ -138,14 +115,12 @@ func (c *Client) AddSalesReport(ctx context.Context, router *entity.Router, repo
 		name = name + "-|-" + report.VoucherComment
 	}
 
-	args := []string{
+	_, err := c.RunContext(ctx,
 		"/system/script/add",
-		"=name=" + name,
-		"=owner=" + report.Owner,
-		"=source=" + report.Source,
+		"=name="+name,
+		"=owner="+report.Owner,
+		"=source="+report.Source,
 		"=comment=mikhmon",
-	}
-
-	_, err = client.RunContext(ctx, args...)
+	)
 	return err
 }

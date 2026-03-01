@@ -22,23 +22,33 @@ type Router struct {
 
 // MikrotikHandlers holds all MikroTik handlers
 type MikrotikHandlers struct {
-	Hotspot   *mikrotik.HotspotHandler
-	Voucher   *mikrotik.VoucherHandler
-	Report    *mikrotik.ReportHandler
-	Interface *mikrotik.InterfaceHandler
-	System    *mikrotik.SystemHandler
-	NAT       *mikrotik.NATHandler
-	Queue     *mikrotik.QueueHandler
-	Log       *mikrotik.LogHandler
-	Pool      *mikrotik.PoolHandler
+	Hotspot    *mikrotik.HotspotHandler
+	Voucher    *mikrotik.VoucherHandler
+	Report     *mikrotik.ReportHandler
+	Interface  *mikrotik.InterfaceHandler
+	System     *mikrotik.SystemHandler
+	NAT        *mikrotik.NATHandler
+	Queue      *mikrotik.QueueHandler
+	Log        *mikrotik.LogHandler
+	Pool       *mikrotik.PoolHandler
+	PPPActive  *mikrotik.PPPActiveHandler
+	PPPProfile *mikrotik.PPPProfileHandler
+	PPPSecret  *mikrotik.PPPSecretHandler
 }
 
 // WSHandlers holds all WebSocket handlers
 type WSHandlers struct {
-	ResourceMonitor *ws.ResourceMonitorHandler
-	TrafficMonitor  *ws.TrafficMonitorHandler
-	QueueMonitor    *ws.QueueMonitorHandler
-	Ping            *ws.PingHandler
+	ResourceMonitor   *ws.ResourceMonitorHandler
+	TrafficMonitor    *ws.TrafficMonitorHandler
+	QueueMonitor      *ws.QueueMonitorHandler
+	Ping              *ws.PingHandler
+	LogMonitor        *ws.LogMonitorHandler
+	HotspotLogMonitor *ws.LogMonitorHandler
+	PPPLogMonitor     *ws.LogMonitorHandler
+	PPPActiveMonitor        *ws.PPPActiveMonitorHandler
+	PPPInactiveMonitor      *ws.PPPInactiveMonitorHandler
+	HotspotActiveMonitor    *ws.HotspotActiveMonitorHandler
+	HotspotInactiveMonitor  *ws.HotspotInactiveMonitorHandler
 }
 
 // NewRouter creates a new HTTP router
@@ -114,6 +124,9 @@ func (r *Router) setupRoutes() {
 				r.mikrotikHandlers.Queue.RegisterRoutes(mikrotik)
 				r.mikrotikHandlers.Log.RegisterRoutes(mikrotik)
 				r.mikrotikHandlers.Pool.RegisterRoutes(mikrotik)
+				r.mikrotikHandlers.PPPActive.RegisterRoutes(mikrotik)
+				r.mikrotikHandlers.PPPProfile.RegisterRoutes(mikrotik)
+				r.mikrotikHandlers.PPPSecret.RegisterRoutes(mikrotik)
 			}
 		}
 	}
@@ -121,10 +134,17 @@ func (r *Router) setupRoutes() {
 	// WebSocket routes
 	ws := r.engine.Group("/api/v1/ws/mikrotik/monitor")
 	{
-		ws.GET("/resource/:router_id", r.wsHandlers.ResourceMonitor.Handle)
-		ws.GET("/interface/:router_id", r.wsHandlers.TrafficMonitor.Handle)
-		ws.GET("/queue/:router_id", r.wsHandlers.QueueMonitor.Handle)
-		ws.GET("/ping/:router_id", r.wsHandlers.Ping.Handle)
+		ws.GET("/resource/:router_id",     r.wsHandlers.ResourceMonitor.Handle)
+		ws.GET("/interface/:router_id",    r.wsHandlers.TrafficMonitor.Handle)
+		ws.GET("/queue/:router_id",        r.wsHandlers.QueueMonitor.Handle)
+		ws.GET("/ping/:router_id",         r.wsHandlers.Ping.Handle)
+		ws.GET("/logs/:router_id",         r.wsHandlers.LogMonitor.Handle)
+		ws.GET("/hotspot-logs/:router_id", r.wsHandlers.HotspotLogMonitor.Handle)
+		ws.GET("/ppp-logs/:router_id",     r.wsHandlers.PPPLogMonitor.Handle)
+		ws.GET("/ppp-active/:router_id",       r.wsHandlers.PPPActiveMonitor.Handle)
+		ws.GET("/ppp-inactive/:router_id",     r.wsHandlers.PPPInactiveMonitor.Handle)
+		ws.GET("/hotspot-active/:router_id",   r.wsHandlers.HotspotActiveMonitor.Handle)
+		ws.GET("/hotspot-inactive/:router_id", r.wsHandlers.HotspotInactiveMonitor.Handle)
 	}
 }
 

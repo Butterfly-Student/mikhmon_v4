@@ -1,5 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Network, RefreshCw, ArrowDown, ArrowUp } from 'lucide-react'
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+} from 'recharts'
 import { Card, Button, Select } from '../ui'
 import { useRouterStore } from '../../stores/routerStore'
 import { mikrotikApi } from '../../api/mikrotik'
@@ -13,6 +22,30 @@ interface InterfaceStats {
   timestamp: number
 }
 
+interface ChartPoint {
+  time: string
+  rx: number
+  tx: number
+}
+
+const MAX_HISTORY = 30
+
+const formatBitsPerSecond = (bps: number) => {
+  if (bps === 0) return '0 bps'
+  const k = 1000
+  const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps']
+  const i = Math.floor(Math.log(bps) / Math.log(k))
+  return parseFloat((bps / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const yAxisFormatter = (v: number) => {
+  if (v === 0) return '0'
+  const k = 1000
+  const sizes = ['', 'K', 'M', 'G']
+  const i = Math.floor(Math.log(v) / Math.log(k))
+  return parseFloat((v / Math.pow(k, i)).toFixed(1)) + sizes[i]
+}
+
 export function InterfaceMonitor() {
   const selectedRouter = useRouterStore((state) => state.selectedRouter)
   const routerId = selectedRouter?.id || '1'
@@ -20,22 +53,28 @@ export function InterfaceMonitor() {
   const [interfaces, setInterfaces] = useState<string[]>([])
   const [selectedInterface, setSelectedInterface] = useState('')
   const [stats, setStats] = useState<InterfaceStats | null>(null)
+  const [history, setHistory] = useState<ChartPoint[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [isMonitoring, setIsMonitoring] = useState(false)
   const [error, setError] = useState('')
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mountedRef = useRef(true)
 
-  // Fetch available interfaces
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
   useEffect(() => {
     const fetchInterfaces = async () => {
       try {
         if (!routerId) return
         const interfacesData = await mikrotikApi.getInterfaces(routerId.toString())
-        // Assuming interface data contains a 'name' property
-        const interfaceNames = interfacesData.map((i: any) => i.name)
-        setInterfaces(interfaceNames)
+        const names = interfacesData.map((i) => i.name).filter((n): n is string => !!n)
+        setInterfaces(names)
+        if (names.length > 0 && names[0]) setSelectedInterface(names[0])
       } catch (err) {
         console.error('Failed to fetch interfaces:', err)
       }
@@ -55,12 +94,7 @@ export function InterfaceMonitor() {
     ws.onopen = () => {
       setIsConnected(true)
       setError('')
-      // Start monitoring
-      ws.send(JSON.stringify({
-        action: 'start',
-        name: selectedInterface,
-        interval: 1
-      }))
+      ws.send(JSON.stringify({ action: 'start', name: selectedInterface, interval: 1 }))
       setIsMonitoring(true)
     }
 
@@ -74,7 +108,19 @@ export function InterfaceMonitor() {
         console.log('Interface monitor status:', data.status)
         return
       }
-      setStats(data)
+      const point: InterfaceStats = data
+      setStats(point)
+      setHistory((prev) => {
+        const next = [
+          ...prev,
+          {
+            time: new Date(point.timestamp).toLocaleTimeString(),
+            rx: point.rxBitsPerSecond,
+            tx: point.txBitsPerSecond,
+          },
+        ]
+        return next.slice(-MAX_HISTORY)
+      })
     }
 
     ws.onerror = (err) => {
@@ -83,11 +129,11 @@ export function InterfaceMonitor() {
     }
 
     ws.onclose = () => {
+      if (!mountedRef.current) return
       setIsConnected(false)
       setIsMonitoring(false)
-      // Auto reconnect after 3s
       reconnectTimeoutRef.current = setTimeout(() => {
-        if (selectedInterface) connect()
+        if (mountedRef.current && selectedInterface) connect()
       }, 3000)
     }
   }, [routerId, selectedInterface])
@@ -95,36 +141,30 @@ export function InterfaceMonitor() {
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
     }
     if (wsRef.current) {
-      wsRef.current.send(JSON.stringify({ action: 'stop' }))
-      wsRef.current.close()
+      const ws = wsRef.current
       wsRef.current = null
+      if (ws.readyState === WebSocket.OPEN) {
+        try { ws.send(JSON.stringify({ action: 'stop' })) } catch (_) { }
+      }
+      ws.onclose = null
+      ws.close()
     }
     setIsMonitoring(false)
     setIsConnected(false)
   }, [])
 
-  useEffect(() => {
-    return () => {
-      disconnect()
-    }
-  }, [disconnect])
+  useEffect(() => () => { disconnect() }, [disconnect])
 
   useEffect(() => {
     if (selectedInterface) {
+      setHistory([])
       disconnect()
       connect()
     }
   }, [selectedInterface, connect, disconnect])
-
-  const formatBitsPerSecond = (bps: number) => {
-    if (bps === 0) return '0 bps'
-    const k = 1000
-    const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps']
-    const i = Math.floor(Math.log(bps) / Math.log(k))
-    return parseFloat((bps / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
 
   return (
     <Card>
@@ -148,7 +188,7 @@ export function InterfaceMonitor() {
           <Select
             options={[
               { value: '', label: 'Select Interface' },
-              ...interfaces.map(iface => ({ value: iface, label: iface }))
+              ...interfaces.map((iface) => ({ value: iface, label: iface })),
             ]}
             value={selectedInterface}
             onChange={(e) => setSelectedInterface(e.target.value)}
@@ -158,31 +198,24 @@ export function InterfaceMonitor() {
             variant="ghost"
             size="sm"
             leftIcon={<RefreshCw className={`w-4 h-4 ${isMonitoring ? 'animate-spin' : ''}`} />}
-            onClick={() => {
-              disconnect()
-              connect()
-            }}
+            onClick={() => { disconnect(); connect() }}
           >
             Refresh
           </Button>
         </div>
 
         {error && (
-          <div className="p-3 bg-danger-50 text-danger-700 rounded-lg text-sm">
-            {error}
-          </div>
+          <div className="p-3 bg-danger-50 text-danger-700 rounded-lg text-sm">{error}</div>
         )}
 
         {selectedInterface && stats ? (
           <div className="space-y-4">
             {/* Interface Name */}
             <div className="text-center">
-              <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                {stats.name}
-              </span>
+              <span className="text-lg font-semibold text-gray-900 dark:text-white">{stats.name}</span>
             </div>
 
-            {/* Traffic Stats */}
+            {/* Current Stats */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-success-50 dark:bg-success-900/20 p-4 rounded-xl">
                 <div className="flex items-center gap-2 text-success-600 mb-2">
@@ -192,9 +225,7 @@ export function InterfaceMonitor() {
                 <div className="text-lg font-bold text-success-700">
                   {formatBitsPerSecond(stats.rxBitsPerSecond)}
                 </div>
-                <div className="text-xs text-success-600 mt-1">
-                  {stats.rxPacketsPerSecond} pps
-                </div>
+                <div className="text-xs text-success-600 mt-1">{stats.rxPacketsPerSecond} pps</div>
               </div>
 
               <div className="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-xl">
@@ -205,11 +236,42 @@ export function InterfaceMonitor() {
                 <div className="text-lg font-bold text-primary-700">
                   {formatBitsPerSecond(stats.txBitsPerSecond)}
                 </div>
-                <div className="text-xs text-primary-600 mt-1">
-                  {stats.txPacketsPerSecond} pps
-                </div>
+                <div className="text-xs text-primary-600 mt-1">{stats.txPacketsPerSecond} pps</div>
               </div>
             </div>
+
+            {/* Chart */}
+            {history.length > 1 && (
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={history} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="rxGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="txGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                    <YAxis tickFormatter={yAxisFormatter} tick={{ fontSize: 10 }} width={48} />
+                    <Tooltip
+                      formatter={((v: number, name: string) => [
+                        formatBitsPerSecond(v),
+                        name === 'rx' ? 'RX' : 'TX',
+                      ]) as any}
+                      labelStyle={{ fontSize: 11 }}
+                      contentStyle={{ fontSize: 11 }}
+                    />
+                    <Legend formatter={(v) => (v === 'rx' ? 'RX (Download)' : 'TX (Upload)')} wrapperStyle={{ fontSize: 11 }} />
+                    <Area type="monotone" dataKey="rx" stroke="#22c55e" fill="url(#rxGrad)" strokeWidth={2} dot={false} isAnimationActive={false} />
+                    <Area type="monotone" dataKey="tx" stroke="#6366f1" fill="url(#txGrad)" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
 
             {/* Total Throughput */}
             <div className="bg-gray-50 dark:bg-dark-700 p-4 rounded-xl">

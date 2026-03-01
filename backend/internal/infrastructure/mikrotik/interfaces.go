@@ -7,19 +7,13 @@ import (
 
 	"github.com/go-routeros/routeros/v3/proto"
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
-	"github.com/irhabi89/mikhmon/internal/domain/entity"
 )
 
-// GetInterfaces retrieves all network interfaces
+// GetInterfaces retrieves all network interfaces.
 // Field dari MikroTik: .id, name, type, actual-mtu, l2mtu, max-l2mtu, mac-address, running, disabled
 // Note: rx/tx stats tidak tersedia di /interface/print biasa, gunakan /interface/monitor-traffic
-func (c *Client) GetInterfaces(ctx context.Context, router *entity.Router) ([]*dto.Interface, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
-	reply, err := client.RunContext(ctx, "/interface/print")
+func (c *Client) GetInterfaces(ctx context.Context) ([]*dto.Interface, error) {
+	reply, err := c.RunContext(ctx, "/interface/print")
 	if err != nil {
 		return nil, err
 	}
@@ -41,90 +35,46 @@ func (c *Client) GetInterfaces(ctx context.Context, router *entity.Router) ([]*d
 	return interfaces, nil
 }
 
-
-// ==================== Interface Traffic Monitor ====================
-
-
-
-// TrafficMonitorStats represents real-time interface traffic statistics
-// Mapping dari: /interface/monitor-traffic
-// Format: rx-bits-per-second=6.0kbps (dengan unit), rx-packets-per-second=10 (plain number)
-type TrafficMonitorStats struct {
-	Name               string    `json:"name"`
-	RxBitsPerSecond    int64     `json:"rxBitsPerSecond"`    // parsed from rx-bits-per-second (dengan unit)
-	TxBitsPerSecond    int64     `json:"txBitsPerSecond"`    // parsed from tx-bits-per-second (dengan unit)
-	RxPacketsPerSecond int64     `json:"rxPacketsPerSecond"` // rx-packets-per-second
-	TxPacketsPerSecond int64     `json:"txPacketsPerSecond"` // tx-packets-per-second
-	FpRxBitsPerSecond  int64     `json:"fpRxBitsPerSecond"`  // fp-rx-bits-per-second (dengan unit)
-	FpTxBitsPerSecond  int64     `json:"fpTxBitsPerSecond"`  // fp-tx-bits-per-second (dengan unit)
-	FpRxPacketsPerSecond int64   `json:"fpRxPacketsPerSecond"` // fp-rx-packets-per-second
-	FpTxPacketsPerSecond int64   `json:"fpTxPacketsPerSecond"` // fp-tx-packets-per-second
-	RxDropsPerSecond   int64     `json:"rxDropsPerSecond"`   // rx-drops-per-second
-	TxDropsPerSecond   int64     `json:"txDropsPerSecond"`   // tx-drops-per-second
-	TxQueueDropsPerSecond int64  `json:"txQueueDropsPerSecond"` // tx-queue-drops-per-second
-	RxErrorsPerSecond  int64     `json:"rxErrorsPerSecond"`  // rx-errors-per-second
-	TxErrorsPerSecond  int64     `json:"txErrorsPerSecond"`  // tx-errors-per-second
-	Timestamp          time.Time `json:"timestamp"`
-}
-
 // StartTrafficMonitorListen starts listening to interface traffic from MikroTik using
 // the RouterOS ListenArgsContext API for real-time streaming.
 // RouterOS /interface/monitor-traffic menghasilkan stream !re sentences berkelanjutan.
 //
-// PENTING: Traffic monitor menggunakan koneksi DEDICATED (bukan dari pool) karena streaming
-// command memblokir koneksi — jika menggunakan pooled connection, health check
-// dari goroutine lain akan conflict dengan stream yang sedang berjalan.
+// Karena Client menggunakan async mode, Listen dan Run dapat berjalan
+// bersamaan pada koneksi yang sama tanpa saling memblokir.
 func (c *Client) StartTrafficMonitorListen(
 	ctx context.Context,
-	router *entity.Router,
-	Name string,
-	resultChan chan<- TrafficMonitorStats,
+	name string,
+	resultChan chan<- dto.TrafficMonitorStats,
 ) (func() error, error) {
-
-	if Name == "" {
+	if name == "" {
 		return nil, fmt.Errorf("interface name is required")
 	}
 
-	// Dial koneksi BARU yang dedicated — tidak dari pool.
-	client, err := c.dial(router)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect for traffic monitor: %w", err)
-	}
-
-	// Build command: /interface/monitor-traffic
-	// ListenArgsContext menerima []string (bukan variadic)
 	args := []string{
 		"/interface/monitor-traffic",
-		fmt.Sprintf("=interface=%s", Name),
+		fmt.Sprintf("=interface=%s", name),
 	}
 
-	// Start listening menggunakan ListenArgsContext
-	listenReply, err := client.ListenArgsContext(ctx, args)
+	listenReply, err := c.ListenArgsContext(ctx, args)
 	if err != nil {
-		client.Close()
 		return nil, fmt.Errorf("failed to start traffic monitor listen: %w", err)
 	}
 
-	// Process replies in a goroutine
 	go func() {
 		defer close(resultChan)
-		defer client.Close() // Tutup koneksi dedicated ketika selesai
 
 		for {
 			select {
 			case <-ctx.Done():
-				// Context cancelled, cancel the RouterOS command
 				listenReply.Cancel()
 				return
 
 			case sentence, ok := <-listenReply.Chan():
 				if !ok {
-					// Channel closed (done or cancelled)
 					return
 				}
 
-				// Parse the sentence
-				result := parseTrafficMonitorSentence(sentence, Name)
+				result := parseTrafficMonitorSentence(sentence, name)
 				result.Timestamp = time.Now()
 
 				select {
@@ -137,26 +87,24 @@ func (c *Client) StartTrafficMonitorListen(
 		}
 	}()
 
-	// Return cancel function
 	return func() error {
 		_, err := listenReply.Cancel()
 		return err
 	}, nil
 }
 
-// parseTrafficMonitorSentence parses a proto.Sentence into TrafficMonitorStats.
-// Field rate (bps/kbps/Mbps/Gbps) diparse menggunakan parseRate
-func parseTrafficMonitorSentence(sentence *proto.Sentence, name string) TrafficMonitorStats {
+// parseTrafficMonitorSentence parses a proto.Sentence into dto.TrafficMonitorStats.
+func parseTrafficMonitorSentence(sentence *proto.Sentence, name string) dto.TrafficMonitorStats {
 	m := sentence.Map
 
-	return TrafficMonitorStats{
+	return dto.TrafficMonitorStats{
 		Name:                  name,
-		RxBitsPerSecond:       parseRate(m["rx-bits-per-second"]),
-		TxBitsPerSecond:       parseRate(m["tx-bits-per-second"]),
+		RxBitsPerSecond:       ParseRate(m["rx-bits-per-second"]),
+		TxBitsPerSecond:       ParseRate(m["tx-bits-per-second"]),
 		RxPacketsPerSecond:    parseInt(m["rx-packets-per-second"]),
 		TxPacketsPerSecond:    parseInt(m["tx-packets-per-second"]),
-		FpRxBitsPerSecond:     parseRate(m["fp-rx-bits-per-second"]),
-		FpTxBitsPerSecond:     parseRate(m["fp-tx-bits-per-second"]),
+		FpRxBitsPerSecond:     ParseRate(m["fp-rx-bits-per-second"]),
+		FpTxBitsPerSecond:     ParseRate(m["fp-tx-bits-per-second"]),
 		FpRxPacketsPerSecond:  parseInt(m["fp-rx-packets-per-second"]),
 		FpTxPacketsPerSecond:  parseInt(m["fp-tx-packets-per-second"]),
 		RxDropsPerSecond:      parseInt(m["rx-drops-per-second"]),

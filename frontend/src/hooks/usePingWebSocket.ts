@@ -46,14 +46,9 @@ export function usePingWebSocket(
   const connectRef = useRef<(() => void) | null>(null)
   // Simpan resolved config terbaru agar tidak stale di closure
   const configRef = useRef(resolvedConfig)
-  configRef.current = resolvedConfig
 
   const connect = useCallback(() => {
-    if (!routerId) {
-      setLatency(null)
-      setIsConnected(false)
-      return
-    }
+    if (!routerId) return
 
     // Internal key untuk WebSocket auth (sama dengan backend)
     const internalKey = import.meta.env.VITE_WS_KEY || 'mikhmon-ws-internal-key'
@@ -137,10 +132,7 @@ export function usePingWebSocket(
     }
 
     wsRef.current = ws
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Store connect function in ref to avoid closure issues
-  connectRef.current = connect
+  }, [routerId])
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -153,9 +145,6 @@ export function usePingWebSocket(
       wsRef.current.close()
     }
     wsRef.current = null
-    setLatency(null)
-    setIsConnected(false)
-    setIsPinging(false)
   }, [])
 
   /** Ganti address ping (dan opsional config) tanpa reconnect */
@@ -171,6 +160,22 @@ export function usePingWebSocket(
       }))
     }
   }, [])
+
+  // Keep refs in sync after render — avoids render-time ref mutation
+  useEffect(() => {
+    configRef.current = resolvedConfig
+    connectRef.current = connect
+  })
+
+  // Reset state when there is no routerId (avoids synchronous setState inside connect/disconnect)
+  useEffect(() => {
+    if (!routerId) {
+      setLatency(null)
+      setIsConnected(false)
+      setIsPinging(false)
+      latencyHistoryRef.current = []
+    }
+  }, [routerId])
 
   useEffect(() => {
     connect()

@@ -18,7 +18,8 @@ export const hotspotApi = {
     if (filter?.profile) params.append('profile', filter.profile)
     if (filter?.comment) params.append('comment', filter.comment)
 
-    const { data } = await api.get<ApiResponse<HotspotUser[]>>(`/mikrotik/${routerId}/users?${params}`)
+    const qs = params.toString()
+    const { data } = await api.get<ApiResponse<HotspotUser[]>>(`/mikrotik/${routerId}/users${qs ? `?${qs}` : ''}`)
     if (DEBUG) console.log('[Hotspot API] Users response:', data)
 
     if (!data.success || !data.data) {
@@ -296,5 +297,33 @@ export const hotspotApi = {
       throw new Error(error)
     }
     return data.data.script
+  },
+
+  // GET /mikrotik/:id/active/count
+  getActiveCount: async (routerId: string): Promise<number> => {
+    if (DEBUG) console.log('[Hotspot API] Fetching active count for router:', routerId)
+    const { data } = await api.get<ApiResponse<{ count: number }>>(`/mikrotik/${routerId}/active/count`)
+    if (DEBUG) console.log('[Hotspot API] Active count response:', data)
+
+    if (!data.success || !data.data) {
+      const error = data.error || 'Failed to get active count'
+      if (DEBUG) console.error('[Hotspot API] Error:', error)
+      throw new Error(error)
+    }
+    return data.data.count
+  },
+
+  // GET /mikrotik/:id/profiles/by-name/:name
+  getProfileByName: async (routerId: string, name: string): Promise<UserProfile> => {
+    if (DEBUG) console.log('[Hotspot API] Fetching profile by name:', name, 'for router:', routerId)
+    const { data } = await api.get<ApiResponse<UserProfile>>(`/mikrotik/${routerId}/profiles/by-name/${encodeURIComponent(name)}`)
+    if (DEBUG) console.log('[Hotspot API] Profile by name response:', data)
+
+    if (!data.success || !data.data) {
+      const error = data.error || 'Failed to get profile'
+      if (DEBUG) console.error('[Hotspot API] Error:', error)
+      throw new Error(error)
+    }
+    return data.data
   },
 }

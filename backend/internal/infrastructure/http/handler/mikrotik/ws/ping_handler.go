@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/irhabi89/mikhmon/internal/domain/dto"
 	"github.com/irhabi89/mikhmon/internal/domain/repository"
 	"github.com/irhabi89/mikhmon/internal/infrastructure/mikrotik"
 	"go.uber.org/zap"
@@ -34,7 +35,7 @@ type PingResultDTO struct {
 type PingHandler struct {
 	upgrader      websocket.Upgrader
 	routerRepo    repository.RouterRepository
-	mikrotikSvc   *mikrotik.Client
+	mikrotikSvc   *mikrotik.Manager
 	internalWSKey string
 	log           *zap.Logger
 }
@@ -42,7 +43,7 @@ type PingHandler struct {
 // NewPingHandler creates a new WebSocket handler for ping
 func NewPingHandler(
 	routerRepo repository.RouterRepository,
-	mikrotikSvc *mikrotik.Client,
+	mikrotikSvc *mikrotik.Manager,
 	internalWSKey string,
 	log *zap.Logger,
 ) *PingHandler {
@@ -133,10 +134,9 @@ func (h *PingHandler) Handle(c *gin.Context) {
 		zap.String("host", router.Host),
 	)
 
-	var resultChan chan mikrotik.PingResult
+	var resultChan chan dto.PingResult
 	var pingCancel func() error
-	forwardingCtx, forwardingCancel := context.WithCancel(ctx)
-	_ = forwardingCtx
+	var forwardingCancel context.CancelFunc
 
 	stopForwarding := func() {
 		if forwardingCancel != nil {
@@ -188,9 +188,9 @@ func (h *PingHandler) Handle(c *gin.Context) {
 				zap.Int("count", cmd.Count),
 				zap.Int("size", cmd.Size),
 			)
-			resultChan = make(chan mikrotik.PingResult, 10)
+			resultChan = make(chan dto.PingResult, 10)
 
-			pingCfg := mikrotik.PingConfig{
+			pingCfg := dto.PingConfig{
 				Address: cmd.Address,
 				Count:   cmd.Count,
 				Size:    cmd.Size,
@@ -199,7 +199,25 @@ func (h *PingHandler) Handle(c *gin.Context) {
 				pingCfg.Interval = time.Duration(cmd.Interval * float64(time.Second))
 			}
 
-			cancelFn, err := h.mikrotikSvc.StartPingListen(ctx, router, pingCfg, resultChan)
+			cfg := mikrotik.Config{
+				Host:     router.Host,
+				Port:     router.Port,
+				Username: router.Username,
+				Password: router.Password,
+				UseTLS:   router.UseSSL,
+				Timeout:  time.Duration(router.Timeout) * time.Second,
+			}
+			routerClient, err := h.mikrotikSvc.GetOrConnect(ctx, router.Name, cfg)
+			if err != nil {
+				h.log.Error("Router not connected",
+					zap.Uint64("routerID", routerID),
+					zap.String("name", router.Name),
+					zap.Error(err),
+				)
+				conn.WriteJSON(gin.H{"type": "error", "message": "router not connected: " + err.Error()})
+				continue
+			}
+			cancelFn, err := routerClient.StartPingListen(ctx, pingCfg, resultChan)
 			if err != nil {
 				h.log.Error("Failed to start ping",
 					zap.Uint64("routerID", routerID),
@@ -211,8 +229,9 @@ func (h *PingHandler) Handle(c *gin.Context) {
 			}
 			pingCancel = cancelFn
 
-			forwardingCtx, forwardingCancel = context.WithCancel(ctx)
-			go func(pingCtx context.Context, ch chan mikrotik.PingResult) {
+			newCtx, newCancel := context.WithCancel(ctx)
+			forwardingCancel = newCancel
+			go func(pingCtx context.Context, ch chan dto.PingResult) {
 				h.log.Debug("Ping forwarding goroutine started",
 					zap.Uint64("routerID", routerID),
 					zap.String("address", cmd.Address),
@@ -239,7 +258,7 @@ func (h *PingHandler) Handle(c *gin.Context) {
 						}
 					}
 				}
-			}(forwardingCtx, resultChan)
+			}(newCtx, resultChan)
 
 			conn.WriteJSON(gin.H{"type": "status", "status": "started", "address": cmd.Address})
 

@@ -12,13 +12,10 @@ export function useTrafficWebSocket(routerId: string | number | undefined, inter
 
     const wsRef = useRef<WebSocket | null>(null)
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const connectRef = useRef<(() => void) | null>(null)
 
     const connect = useCallback(() => {
-        if (!routerId || !interfaceName) {
-            setStats(null)
-            setIsConnected(false)
-            return
-        }
+        if (!routerId || !interfaceName) return
 
         const internalKey = import.meta.env.VITE_WS_KEY || 'mikhmon-ws-internal-key'
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -57,7 +54,11 @@ export function useTrafficWebSocket(routerId: string | number | undefined, inter
         ws.onclose = (event) => {
             console.log('[WS Traffic] Closed:', event.code, event.reason)
             setIsConnected(false)
-            reconnectTimeoutRef.current = setTimeout(connect, 3000)
+            reconnectTimeoutRef.current = setTimeout(() => {
+                if (connectRef.current) {
+                    connectRef.current()
+                }
+            }, 3000)
         }
 
         ws.onerror = (error) => {
@@ -68,6 +69,11 @@ export function useTrafficWebSocket(routerId: string | number | undefined, inter
         wsRef.current = ws
     }, [routerId, interfaceName])
 
+    // Keep ref in sync after render so the reconnect timeout always calls the latest version
+    useEffect(() => {
+        connectRef.current = connect
+    })
+
     const disconnect = useCallback(() => {
         if (reconnectTimeoutRef.current) {
             clearTimeout(reconnectTimeoutRef.current)
@@ -76,8 +82,15 @@ export function useTrafficWebSocket(routerId: string | number | undefined, inter
             wsRef.current.close()
         }
         wsRef.current = null
-        setIsConnected(false)
     }, [])
+
+    // Reset state when routerId / interfaceName is absent
+    useEffect(() => {
+        if (!routerId || !interfaceName) {
+            setStats(null)
+            setIsConnected(false)
+        }
+    }, [routerId, interfaceName])
 
     useEffect(() => {
         connect()

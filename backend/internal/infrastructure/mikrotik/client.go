@@ -2,269 +2,299 @@ package mikrotik
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/go-routeros/routeros/v3"
-	"github.com/irhabi89/mikhmon/internal/domain/entity"
+	routeros "github.com/go-routeros/routeros/v3"
 	"go.uber.org/zap"
 )
 
-// Client wraps the MikroTik RouterOS client with a connection pool.
-// Koneksi di-cache per router ID dan di-reconnect otomatis jika terputus.
+const (
+	DefaultQueueSize    = 100
+	reconnectBaseDelay  = time.Second
+	reconnectMaxDelay   = 30 * time.Second
+)
+
+// Config holds connection parameters for a single MikroTik router.
+type Config struct {
+	Host              string
+	Port              int
+	Username          string
+	Password          string
+	UseTLS            bool
+	ReconnectInterval time.Duration
+	Timeout           time.Duration // per-command timeout (default 10s)
+	PoolSize          int           // unused field kept for config compatibility
+}
+
+// Client wraps a single async RouterOS connection.
+//
+// Calling Async() on the underlying *routeros.Client enables the library's
+// built-in tag multiplexing: a single TCP connection handles many concurrent
+// Run / Listen calls without extra goroutines or locking on our side.
+//
+// All exported methods are safe for concurrent use.
 type Client struct {
-	mu      sync.Mutex
-	clients map[uint]*routeros.Client
-	log     *zap.Logger
+	conn        *routeros.Client
+	config      Config
+	asyncCtx    context.Context    // lives for the lifetime of Client
+	asyncCancel context.CancelFunc // cancelled by Close()
+	mu          sync.RWMutex
+	closed      bool
+	logger      *zap.Logger
 }
 
-// NewClient creates a new MikroTik client with connection pool
-func NewClient(log *zap.Logger) *Client {
-	if log == nil {
-		log = zap.NewNop()
+// NewClient creates a Client. Call Connect before using it.
+func NewClient(cfg Config, logger *zap.Logger) *Client {
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = 10 * time.Second
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Client{
-		clients: make(map[uint]*routeros.Client),
-		log:     log.Named("mikrotik"),
+		config:      cfg,
+		asyncCtx:    ctx,
+		asyncCancel: cancel,
+		logger:      logger,
 	}
 }
 
-// getClient returns a cached connection or dials a new one.
-// Health check dilakukan SETELAH melepas mutex agar tidak blocking operasi lain.
-func (c *Client) getClient(router *entity.Router) (*routeros.Client, error) {
-	// === Phase 1: cek cache (lock singkat) ===
+// Connect dials the router and switches the connection to async mode.
+// In async mode the library multiplexes concurrent requests over one TCP
+// connection using internal tags — no connection pool required.
+func (c *Client) Connect(ctx context.Context) error {
+	conn, err := c.dial(ctx)
+	if err != nil {
+		return fmt.Errorf("connect mikrotik %s: %w", c.config.Host, err)
+	}
+
+	// AsyncContext starts the internal tag-based read loop. The returned channel
+	// receives a single error when the async loop terminates (connection lost).
+	errCh := conn.AsyncContext(c.asyncCtx)
+
+	// Set the default channel buffer for Listen operations.
+	conn.Queue = DefaultQueueSize
+
 	c.mu.Lock()
-	existing, cached := c.clients[router.ID]
+	c.conn = conn
 	c.mu.Unlock()
 
-	if cached {
-		// Health check di luar lock — tidak mengblokir goroutine lain
-		healthCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
+	go c.watchAsync(errCh)
 
-		_, err := existing.RunContext(healthCtx, "/system/identity/print")
-		if err == nil {
-			return existing, nil
-		}
+	c.logger.Info("connected to mikrotik (async)",
+		zap.String("host", c.config.Host),
+		zap.Bool("is_async", conn.IsAsync()),
+	)
+	return nil
+}
 
-		// Koneksi mati; tutup dan hapus dari pool
-		c.log.Warn("Cached connection dead, reconnecting",
-			zap.Uint("routerID", router.ID),
-			zap.String("host", router.Host),
-			zap.Error(err),
-		)
-		existing.Close()
+// Close cancels the async context and closes the underlying connection.
+func (c *Client) Close() {
+	c.mu.Lock()
+	c.closed = true
+	conn := c.conn
+	c.conn = nil
+	c.mu.Unlock()
 
-		c.mu.Lock()
-		// Double-check: goroutine lain mungkin sudah update saat lock dilepas
-		if c.clients[router.ID] == existing {
-			delete(c.clients, router.ID)
-		}
-		c.mu.Unlock()
+	c.asyncCancel()
+	if conn != nil {
+		conn.Close() //nolint:errcheck
+	}
+}
+
+// IsAsync reports whether the underlying connection is in async mode.
+func (c *Client) IsAsync() bool {
+	c.mu.RLock()
+	conn := c.conn
+	c.mu.RUnlock()
+	return conn != nil && conn.IsAsync()
+}
+
+// dial opens a single RouterOS connection (dial + login).
+func (c *Client) dial(ctx context.Context) (*routeros.Client, error) {
+	addr := fmt.Sprintf("%s:%d", c.config.Host, c.config.Port)
+	if c.config.UseTLS {
+		return routeros.DialTLSContext(ctx, addr, c.config.Username, c.config.Password, nil)
+	}
+	return routeros.DialContext(ctx, addr, c.config.Username, c.config.Password)
+}
+
+// watchAsync waits for the async loop to terminate. On unexpected failure it
+// triggers automatic reconnection.
+func (c *Client) watchAsync(errCh <-chan error) {
+	err := <-errCh
+
+	c.mu.RLock()
+	closed := c.closed
+	c.mu.RUnlock()
+	if closed {
+		return // expected shutdown, do nothing
 	}
 
-	// === Phase 2: buat koneksi baru (dengan retry) ===
-	client, err := c.dialWithRetry(router)
+	c.logger.Warn("async connection lost, reconnecting",
+		zap.String("host", c.config.Host),
+		zap.Error(err),
+	)
+	c.mu.Lock()
+	c.conn = nil
+	c.mu.Unlock()
+
+	go c.reconnect()
+}
+
+// reconnect dials a new connection with exponential backoff and re-enables async mode.
+func (c *Client) reconnect() {
+	backoff := reconnectBaseDelay
+	for {
+		c.mu.RLock()
+		closed := c.closed
+		c.mu.RUnlock()
+		if closed {
+			return
+		}
+
+		dialCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		conn, err := c.dial(dialCtx)
+		cancel()
+
+		if err == nil {
+			conn.Queue = DefaultQueueSize
+			errCh := conn.AsyncContext(c.asyncCtx)
+
+			c.mu.Lock()
+			if !c.closed {
+				c.conn = conn
+				c.mu.Unlock()
+				go c.watchAsync(errCh)
+				c.logger.Info("reconnected to mikrotik", zap.String("host", c.config.Host))
+				return
+			}
+			c.mu.Unlock()
+			conn.Close() //nolint:errcheck
+			return
+		}
+
+		c.logger.Warn("reconnect failed, retrying",
+			zap.String("host", c.config.Host),
+			zap.Duration("after", backoff),
+			zap.Error(err),
+		)
+		time.Sleep(backoff)
+		if backoff < reconnectMaxDelay {
+			backoff *= 2
+		}
+	}
+}
+
+// ─── Command execution ────────────────────────────────────────────────────────
+
+// conn returns the current connection or an error if disconnected.
+func (c *Client) getConn() (*routeros.Client, error) {
+	c.mu.RLock()
+	conn := c.conn
+	c.mu.RUnlock()
+	if conn == nil {
+		return nil, fmt.Errorf("not connected to mikrotik (%s)", c.config.Host)
+	}
+	return conn, nil
+}
+
+// RunContext executes a RouterOS command with the given context.
+// In async mode the library tags the request internally, so many goroutines
+// can call RunContext concurrently on the same Client without blocking each other.
+func (c *Client) RunContext(ctx context.Context, sentence ...string) (*routeros.Reply, error) {
+	conn, err := c.getConn()
 	if err != nil {
 		return nil, err
 	}
-
-	c.mu.Lock()
-	c.clients[router.ID] = client
-	c.mu.Unlock()
-
-	return client, nil
+	return conn.RunContext(ctx, sentence...)
 }
 
-// dialWithRetry mencoba dial dengan max 2 retry dan exponential backoff.
-func (c *Client) dialWithRetry(router *entity.Router) (*routeros.Client, error) {
-	const maxRetries = 2
-	delays := []time.Duration{500 * time.Millisecond, 1 * time.Second}
-
-	var lastErr error
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			c.log.Info("Retrying MikroTik connection",
-				zap.Uint("routerID", router.ID),
-				zap.String("host", router.Host),
-				zap.Int("attempt", attempt),
-				zap.Error(lastErr),
-			)
-			time.Sleep(delays[attempt-1])
-		}
-
-		client, err := c.dial(router)
-		if err == nil {
-			if attempt > 0 {
-				c.log.Info("MikroTik connection succeeded after retry",
-					zap.Uint("routerID", router.ID),
-					zap.String("host", router.Host),
-					zap.Int("attempt", attempt),
-				)
-			}
-			return client, nil
-		}
-		lastErr = err
-	}
-
-	c.log.Error("MikroTik connection failed after retries",
-		zap.Uint("routerID", router.ID),
-		zap.String("host", router.Host),
-		zap.Int("maxRetries", maxRetries),
-		zap.Error(lastErr),
-	)
-	return nil, fmt.Errorf("connection failed after %d attempts: %w", maxRetries+1, lastErr)
+// Run executes a RouterOS command using the configured per-command timeout.
+func (c *Client) Run(sentence ...string) (*routeros.Reply, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.config.Timeout)
+	defer cancel()
+	return c.RunContext(ctx, sentence...)
 }
 
-// dial membuka koneksi TCP baru ke router dan login.
-// Timeout dial dinaikkan ke 10 detik untuk menangani jaringan yang lambat/variabel.
-func (c *Client) dial(router *entity.Router) (*routeros.Client, error) {
-	password := router.Password // TODO: implement decryption
-	addr := net.JoinHostPort(router.Host, strconv.Itoa(router.Port))
-
-	dialer := &net.Dialer{Timeout: 10 * time.Second}
-
-	var client *routeros.Client
-
-	if router.UseSSL {
-		conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
-			InsecureSkipVerify: true, //nolint:gosec
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to router %s: %w", router.Host, err)
-		}
-		if client, err = routeros.NewClient(conn); err != nil {
-			conn.Close()
-			return nil, fmt.Errorf("failed to create MikroTik client: %w", err)
-		}
-	} else {
-		conn, err := dialer.Dial("tcp", addr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to router %s: %w", router.Host, err)
-		}
-		if client, err = routeros.NewClient(conn); err != nil {
-			conn.Close()
-			return nil, fmt.Errorf("failed to create MikroTik client: %w", err)
-		}
-	}
-
-	if err := client.Login(router.Username, password); err != nil {
-		client.Close()
-		return nil, fmt.Errorf("failed to login to router %s: %w", router.Host, err)
-	}
-
-	c.log.Info("Connected to MikroTik router",
-		zap.String("host", router.Host),
-		zap.Uint("routerID", router.ID),
-		zap.Bool("ssl", router.UseSSL),
-	)
-
-	return client, nil
+// RunArgs is a slice-based variant of Run.
+func (c *Client) RunArgs(args []string) (*routeros.Reply, error) {
+	return c.Run(args...)
 }
 
-// TestConnection tests if a connection can be established to the router.
-// Selalu membuat koneksi baru (tidak menggunakan cache).
-func (c *Client) TestConnection(ctx context.Context, router *entity.Router) error {
-	client, err := c.dial(router)
+// RunArgsContext is a slice-based variant of RunContext.
+func (c *Client) RunArgsContext(ctx context.Context, args []string) (*routeros.Reply, error) {
+	return c.RunContext(ctx, args...)
+}
+
+// RunMany executes multiple RouterOS commands concurrently.
+// Because the connection is in async mode, all commands fly over the same TCP
+// connection simultaneously — no extra connections or locking needed.
+// Results are returned in the same order as the input commands.
+func (c *Client) RunMany(ctx context.Context, commands [][]string) ([]*routeros.Reply, []error) {
+	conn, err := c.getConn()
 	if err != nil {
-		return err
-	}
-	defer client.Close()
-
-	_, err = client.RunContext(ctx, "/system/identity/print")
-	return err
-}
-
-// CloseRouter menutup dan menghapus koneksi untuk router tertentu dari pool
-func (c *Client) CloseRouter(routerID uint) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if client, ok := c.clients[routerID]; ok {
-		client.Close()
-		delete(c.clients, routerID)
-	}
-}
-
-// CloseAll menutup semua koneksi dalam pool
-func (c *Client) CloseAll() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	for id, client := range c.clients {
-		client.Close()
-		delete(c.clients, id)
-	}
-}
-
-// Helper: parse int from RouterOS string
-func parseInt(s string) int64 {
-	if s == "" {
-		return 0
-	}
-	i, _ := strconv.ParseInt(s, 10, 64)
-	return i
-}
-
-// Helper: parse float from RouterOS string
-func parseFloat(s string) float64 {
-	if s == "" {
-		return 0
-	}
-	f, _ := strconv.ParseFloat(s, 64)
-	return f
-}
-
-// parseRate parses a rate string with unit (bps, kbps, Mbps, Gbps) to bits per second
-// Examples: "0bps" -> 0, "74.3kbps" -> 74300, "2.2Mbps" -> 2200000, "1Gbps" -> 1000000000
-func parseRate(s string) int64 {
-	if s == "" || s == "0" {
-		return 0
-	}
-
-	// Remove the unit suffix and parse
-	var value float64
-	var unit string
-
-	// Find where the number ends and unit begins
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] >= '0' && s[i] <= '9' || s[i] == '.' {
-			value = parseFloat(s[:i+1])
-			unit = s[i+1:]
-			break
+		errs := make([]error, len(commands))
+		for i := range errs {
+			errs[i] = err
 		}
+		return make([]*routeros.Reply, len(commands)), errs
 	}
 
-	if unit == "" {
-		// No unit found, try to parse as plain number
-		return parseInt(s)
+	type result struct {
+		idx   int
+		reply *routeros.Reply
+		err   error
 	}
 
-	switch strings.ToLower(unit) {
-	case "bps":
-		return int64(value)
-	case "kbps":
-		return int64(value * 1000)
-	case "mbps":
-		return int64(value * 1000 * 1000)
-	case "gbps":
-		return int64(value * 1000 * 1000 * 1000)
-	default:
-		return parseInt(s)
+	ch := make(chan result, len(commands))
+	for i, cmd := range commands {
+		go func(idx int, sentence []string) {
+			reply, err := conn.RunContext(ctx, sentence...)
+			ch <- result{idx: idx, reply: reply, err: err}
+		}(i, cmd)
 	}
+
+	replies := make([]*routeros.Reply, len(commands))
+	errs := make([]error, len(commands))
+	for range commands {
+		r := <-ch
+		replies[r.idx] = r.reply
+		errs[r.idx] = r.err
+	}
+	return replies, errs
 }
 
-// Helper: parse bool from RouterOS string
-func parseBool(s string) bool {
-	return s == "true" || s == "yes"
+// ─── Streaming ────────────────────────────────────────────────────────────────
+
+// ListenArgs starts a streaming RouterOS command (e.g. /interface/monitor-traffic).
+// The returned *routeros.ListenReply streams sentences via Chan().
+// Call Cancel() or CancelContext() when done.
+//
+// Because the connection is async, Listen and Run calls co-exist on the same
+// TCP connection without interfering.
+func (c *Client) ListenArgs(args []string) (*routeros.ListenReply, error) {
+	conn, err := c.getConn()
+	if err != nil {
+		return nil, err
+	}
+	return conn.ListenArgsContext(c.asyncCtx, args)
 }
 
-// Helper: format int to string
-func formatInt(n int64) string {
-	return strconv.FormatInt(n, 10)
+// ListenArgsContext is the context-aware variant of ListenArgs.
+func (c *Client) ListenArgsContext(ctx context.Context, args []string) (*routeros.ListenReply, error) {
+	conn, err := c.getConn()
+	if err != nil {
+		return nil, err
+	}
+	return conn.ListenArgsContext(ctx, args)
+}
+
+// ListenArgsQueue starts a streaming command with a custom receive-channel buffer size.
+func (c *Client) ListenArgsQueue(args []string, queueSize int) (*routeros.ListenReply, error) {
+	conn, err := c.getConn()
+	if err != nil {
+		return nil, err
+	}
+	return conn.ListenArgsQueueContext(c.asyncCtx, args, queueSize)
 }

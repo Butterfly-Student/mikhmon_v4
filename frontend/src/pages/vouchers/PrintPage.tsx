@@ -51,7 +51,7 @@ export function PrintPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Print Vouchers</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Print Vouchers</h1>
           <p className="text-gray-500 dark:text-gray-400">
             Print generated vouchers with templates
           </p>
@@ -95,7 +95,7 @@ export function PrintPage() {
             />
           </div>
           <Button
-            variant="gradient"
+            variant="primary"
             leftIcon={<Printer className="w-4 h-4" />}
             onClick={handlePrint}
             disabled={!vouchers?.length}
@@ -182,3 +182,4 @@ export function PrintPage() {
     </motion.div>
   )
 }
+

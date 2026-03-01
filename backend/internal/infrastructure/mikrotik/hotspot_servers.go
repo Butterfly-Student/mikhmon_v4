@@ -2,21 +2,11 @@ package mikrotik
 
 import (
 	"context"
-
-	"github.com/irhabi89/mikhmon/internal/domain/entity"
 )
 
-
-
-
-// GetHotspotServers retrieves all hotspot server names
-func (c *Client) GetHotspotServers(ctx context.Context, router *entity.Router) ([]string, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
-	reply, err := client.RunContext(ctx, "/ip/hotspot/print")
+// GetHotspotServers retrieves all hotspot server names.
+func (c *Client) GetHotspotServers(ctx context.Context) ([]string, error) {
+	reply, err := c.RunContext(ctx, "/ip/hotspot/print")
 	if err != nil {
 		return nil, err
 	}

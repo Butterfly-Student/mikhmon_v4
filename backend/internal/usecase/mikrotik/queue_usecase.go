@@ -13,14 +13,14 @@ import (
 // QueueUseCase handles queue business logic
 type QueueUseCase struct {
 	routerRepo  repository.RouterRepository
-	mikrotikSvc *mikrotik.Client
+	mikrotikSvc *mikrotik.Manager
 	log         *zap.Logger
 }
 
 // NewQueueUseCase creates a new queue use case
 func NewQueueUseCase(
 	routerRepo repository.RouterRepository,
-	mikrotikSvc *mikrotik.Client,
+	mikrotikSvc *mikrotik.Manager,
 	log *zap.Logger,
 ) *QueueUseCase {
 	if log == nil {
@@ -40,10 +40,15 @@ func (uc *QueueUseCase) GetAllQueues(ctx context.Context, routerID uint) ([]stri
 		return nil, err
 	}
 
+	c, err := connectRouter(ctx, uc.mikrotikSvc, router)
+	if err != nil {
+		return nil, fmt.Errorf("router %q not connected: %w", router.Name, err)
+	}
+
 	queueCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	queues, err := uc.mikrotikSvc.GetAllQueues(queueCtx, router)
+	queues, err := c.GetAllQueues(queueCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get queues from MikroTik: %w", err)
 	}
@@ -57,10 +62,15 @@ func (uc *QueueUseCase) GetParentQueues(ctx context.Context, routerID uint) ([]s
 		return nil, err
 	}
 
+	c, err := connectRouter(ctx, uc.mikrotikSvc, router)
+	if err != nil {
+		return nil, fmt.Errorf("router %q not connected: %w", router.Name, err)
+	}
+
 	queueCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	queues, err := uc.mikrotikSvc.GetAllParentQueues(queueCtx, router)
+	queues, err := c.GetAllParentQueues(queueCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get parent queues from MikroTik: %w", err)
 	}

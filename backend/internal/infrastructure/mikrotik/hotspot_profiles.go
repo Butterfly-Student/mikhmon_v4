@@ -5,17 +5,11 @@ import (
 	"strings"
 
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
-	"github.com/irhabi89/mikhmon/internal/domain/entity"
 )
 
-// GetUserProfiles retrieves all hotspot user profiles
-func (c *Client) GetUserProfiles(ctx context.Context, router *entity.Router) ([]*dto.UserProfile, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
-	reply, err := client.RunContext(ctx, "/ip/hotspot/user/profile/print")
+// GetUserProfiles retrieves all hotspot user profiles.
+func (c *Client) GetUserProfiles(ctx context.Context) ([]*dto.UserProfile, error) {
+	reply, err := c.RunContext(ctx, "/ip/hotspot/user/profile/print")
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +38,6 @@ func (c *Client) GetUserProfiles(ctx context.Context, router *entity.Router) ([]
 			AdvertiseURL:      re.Map["advertise-url"],
 		}
 
-		// Parse Mikhmon metadata from on-login script
 		if profile.OnLogin != "" {
 			parsed := generator.Parse(profile.OnLogin)
 			profile.ExpireMode = parsed.ExpireMode
@@ -61,14 +54,9 @@ func (c *Client) GetUserProfiles(ctx context.Context, router *entity.Router) ([]
 	return profiles, nil
 }
 
-// GetUserProfileByID retrieves a user profile by ID
-func (c *Client) GetUserProfileByID(ctx context.Context, router *entity.Router, id string) (*dto.UserProfile, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
-	reply, err := client.RunContext(ctx, "/ip/hotspot/user/profile/print", "?.id="+id)
+// GetUserProfileByID retrieves a user profile by ID.
+func (c *Client) GetUserProfileByID(ctx context.Context, id string) (*dto.UserProfile, error) {
+	reply, err := c.RunContext(ctx, "/ip/hotspot/user/profile/print", "?.id="+id)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +84,6 @@ func (c *Client) GetUserProfileByID(ctx context.Context, router *entity.Router, 
 		OpenStatusPage:    re.Map["open-status-page"],
 	}
 
-	// Parse Mikhmon metadata
 	if profile.OnLogin != "" {
 		parsed := generator.Parse(profile.OnLogin)
 		profile.ExpireMode = parsed.ExpireMode
@@ -110,14 +97,9 @@ func (c *Client) GetUserProfileByID(ctx context.Context, router *entity.Router, 
 	return profile, nil
 }
 
-// GetUserProfileByName retrieves a user profile by name
-func (c *Client) GetUserProfileByName(ctx context.Context, router *entity.Router, name string) (*dto.UserProfile, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
-	reply, err := client.RunContext(ctx, "/ip/hotspot/user/profile/print", "?name="+name)
+// GetUserProfileByName retrieves a user profile by name.
+func (c *Client) GetUserProfileByName(ctx context.Context, name string) (*dto.UserProfile, error) {
+	reply, err := c.RunContext(ctx, "/ip/hotspot/user/profile/print", "?name="+name)
 	if err != nil {
 		return nil, err
 	}
@@ -130,17 +112,15 @@ func (c *Client) GetUserProfileByName(ctx context.Context, router *entity.Router
 	generator := NewOnLoginGenerator()
 
 	profile := &dto.UserProfile{
-		ID:                re.Map[".id"],
-		Name:              re.Map["name"],
-		AddressPool:       re.Map["address-pool"],
-		SharedUsers:       int(parseInt(re.Map["shared-users"])),
-		RateLimit:         re.Map["rate-limit"],
-		ParentQueue:       re.Map["parent-queue"],
-		StatusAutorefresh: re.Map["status-autorefresh"],
-		OnLogin:           re.Map["on-login"],
+		ID:          re.Map[".id"],
+		Name:        re.Map["name"],
+		AddressPool: re.Map["address-pool"],
+		SharedUsers: int(parseInt(re.Map["shared-users"])),
+		RateLimit:   re.Map["rate-limit"],
+		ParentQueue: re.Map["parent-queue"],
+		OnLogin:     re.Map["on-login"],
 	}
 
-	// Parse Mikhmon metadata
 	if profile.OnLogin != "" {
 		parsed := generator.Parse(profile.OnLogin)
 		profile.ExpireMode = parsed.ExpireMode
@@ -154,14 +134,8 @@ func (c *Client) GetUserProfileByName(ctx context.Context, router *entity.Router
 	return profile, nil
 }
 
-// AddUserProfile adds a new hotspot user profile with on-login script
-func (c *Client) AddUserProfile(ctx context.Context, router *entity.Router, profile *dto.UserProfile) (string, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return "", err
-	}
-
-	// Generate on-login script if Mikhmon fields are provided
+// AddUserProfile adds a new hotspot user profile with on-login script.
+func (c *Client) AddUserProfile(ctx context.Context, profile *dto.UserProfile) (string, error) {
 	var onLoginScript string
 	if profile.ExpireMode != "" {
 		generator := NewOnLoginGenerator()
@@ -196,12 +170,11 @@ func (c *Client) AddUserProfile(ctx context.Context, router *entity.Router, prof
 		args = append(args, "=parent-queue="+profile.ParentQueue)
 	}
 	if onLoginScript != "" {
-		// Replace semicolons with newlines for RouterOS script format
 		script := strings.ReplaceAll(onLoginScript, "; ", "\n")
 		args = append(args, "=on-login="+script)
 	}
 
-	reply, err := client.RunContext(ctx, args...)
+	reply, err := c.RunArgsContext(ctx, args)
 	if err != nil {
 		return "", err
 	}
@@ -213,14 +186,8 @@ func (c *Client) AddUserProfile(ctx context.Context, router *entity.Router, prof
 	return "", nil
 }
 
-// UpdateUserProfile updates an existing user profile
-func (c *Client) UpdateUserProfile(ctx context.Context, router *entity.Router, id string, profile *dto.UserProfile) error {
-	client, err := c.getClient(router)
-	if err != nil {
-		return err
-	}
-
-	// Generate on-login script if Mikhmon fields are provided
+// UpdateUserProfile updates an existing user profile.
+func (c *Client) UpdateUserProfile(ctx context.Context, id string, profile *dto.UserProfile) error {
 	var onLoginScript string
 	if profile.ExpireMode != "" {
 		generator := NewOnLoginGenerator()
@@ -257,22 +224,16 @@ func (c *Client) UpdateUserProfile(ctx context.Context, router *entity.Router, i
 		args = append(args, "=parent-queue="+profile.ParentQueue)
 	}
 	if onLoginScript != "" {
-		// Replace semicolons with newlines for RouterOS script format
 		script := strings.ReplaceAll(onLoginScript, "; ", "\n")
 		args = append(args, "=on-login="+script)
 	}
 
-	_, err = client.RunContext(ctx, args...)
+	_, err := c.RunArgsContext(ctx, args)
 	return err
 }
 
-// RemoveUserProfile removes a user profile
-func (c *Client) RemoveUserProfile(ctx context.Context, router *entity.Router, id string) error {
-	client, err := c.getClient(router)
-	if err != nil {
-		return err
-	}
-
-	_, err = client.RunContext(ctx, "/ip/hotspot/user/profile/remove", "=.id="+id)
+// RemoveUserProfile removes a user profile.
+func (c *Client) RemoveUserProfile(ctx context.Context, id string) error {
+	_, err := c.RunContext(ctx, "/ip/hotspot/user/profile/remove", "=.id="+id)
 	return err
 }

@@ -2,28 +2,53 @@ package mikrotik
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
 	"github.com/irhabi89/mikhmon/internal/domain/repository"
 )
 
-// HotspotService provides high-level hotspot operations
+// HotspotService provides high-level hotspot operations across multiple routers.
+// It resolves the router's Manager name via routerRepo, then delegates to the
+// per-router *Client obtained from the Manager.
 type HotspotService struct {
-	client     *Client
+	manager    *Manager
 	routerRepo repository.RouterRepository
 }
 
-// NewHotspotService creates a new hotspot service
-func NewHotspotService(client *Client, routerRepo repository.RouterRepository) *HotspotService {
+// NewHotspotService creates a new HotspotService.
+func NewHotspotService(manager *Manager, routerRepo repository.RouterRepository) *HotspotService {
 	return &HotspotService{
-		client:     client,
+		manager:    manager,
 		routerRepo: routerRepo,
 	}
 }
 
-// AddUser adds a hotspot user to the specified router
-func (s *HotspotService) AddUser(ctx context.Context, routerID uint, req dto.CreateUserRequest) (*dto.HotspotUser, error) {
+// client resolves the *Client for the given routerID, connecting on demand.
+func (s *HotspotService) client(ctx context.Context, routerID uint) (*Client, error) {
 	router, err := s.routerRepo.GetByID(ctx, routerID)
+	if err != nil {
+		return nil, err
+	}
+	cfg := Config{
+		Host:     router.Host,
+		Port:     router.Port,
+		Username: router.Username,
+		Password: router.Password,
+		UseTLS:   router.UseSSL,
+		Timeout:  time.Duration(router.Timeout) * time.Second,
+	}
+	c, err := s.manager.GetOrConnect(ctx, router.Name, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active users from MikroTik: %w", err)
+	}
+	return c, nil
+}
+
+// AddUser adds a hotspot user to the specified router.
+func (s *HotspotService) AddUser(ctx context.Context, routerID uint, req dto.CreateUserRequest) (*dto.HotspotUser, error) {
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +65,7 @@ func (s *HotspotService) AddUser(ctx context.Context, routerID uint, req dto.Cre
 		Disabled:        req.Disabled,
 	}
 
-	id, err := s.client.AddHotspotUser(ctx, router, user)
+	id, err := c.AddHotspotUser(ctx, user)
 	if err != nil {
 		return nil, err
 	}
@@ -49,24 +74,23 @@ func (s *HotspotService) AddUser(ctx context.Context, routerID uint, req dto.Cre
 	return user, nil
 }
 
-// GetUsers retrieves hotspot users from the specified router
+// GetUsers retrieves hotspot users from the specified router.
 func (s *HotspotService) GetUsers(ctx context.Context, routerID uint, filter dto.UserFilter) ([]dto.HotspotUser, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
 
 	var users []*dto.HotspotUser
 	if filter.Comment != "" {
-		users, err = s.client.GetHotspotUsersByComment(ctx, router, filter.Comment)
+		users, err = c.GetHotspotUsersByComment(ctx, filter.Comment)
 	} else {
-		users, err = s.client.GetHotspotUsers(ctx, router, filter.Profile)
+		users, err = c.GetHotspotUsers(ctx, filter.Profile)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert to slice of values
 	result := make([]dto.HotspotUser, len(users))
 	for i, u := range users {
 		result[i] = *u
@@ -74,79 +98,72 @@ func (s *HotspotService) GetUsers(ctx context.Context, routerID uint, filter dto
 	return result, nil
 }
 
-// GetUsersCount retrieves total hotspot users count from the specified router
+// GetUsersCount retrieves total hotspot users count from the specified router.
 func (s *HotspotService) GetUsersCount(ctx context.Context, routerID uint) (int, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return 0, err
 	}
-
-	return s.client.GetHotspotUsersCount(ctx, router)
+	return c.GetHotspotUsersCount(ctx)
 }
 
-// RemoveUser removes a hotspot user from the specified router
+// RemoveUser removes a hotspot user from the specified router.
 func (s *HotspotService) RemoveUser(ctx context.Context, routerID uint, userID string) error {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return err
 	}
-
-	return s.client.RemoveHotspotUser(ctx, router, userID)
+	return c.RemoveHotspotUser(ctx, userID)
 }
 
-// GetAddressPools retrieves address pools from the specified router
+// GetAddressPools retrieves address pools from the specified router.
 func (s *HotspotService) GetAddressPools(ctx context.Context, routerID uint) ([]string, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
-
-	return s.client.GetAddressPools(ctx, router)
+	return c.GetAddressPools(ctx)
 }
 
-// GetParentQueues retrieves parent queues from the specified router
+// GetParentQueues retrieves parent queues from the specified router.
 func (s *HotspotService) GetParentQueues(ctx context.Context, routerID uint) ([]string, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
-
-	return s.client.GetAllParentQueues(ctx, router)
+	return c.GetAllParentQueues(ctx)
 }
 
-// GetParentQueues retrieves parent queues from the specified router
+// GetAllQueues retrieves all queues from the specified router.
 func (s *HotspotService) GetAllQueues(ctx context.Context, routerID uint) ([]string, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
-
-	return s.client.GetAllQueues(ctx, router)
+	return c.GetAllQueues(ctx)
 }
 
-// GetServers retrieves hotspot servers from the specified router
+// GetServers retrieves hotspot servers from the specified router.
 func (s *HotspotService) GetServers(ctx context.Context, routerID uint) ([]string, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
-
-	return s.client.GetHotspotServers(ctx, router)
+	return c.GetHotspotServers(ctx)
 }
 
-// GetUserByID retrieves a specific user by ID
+// GetUserByID retrieves a specific user by ID.
 func (s *HotspotService) GetUserByID(ctx context.Context, routerID uint, userID string) (*dto.HotspotUser, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
-
-	return s.client.GetHotspotUserByID(ctx, router, userID)
+	return c.GetHotspotUserByID(ctx, userID)
 }
 
-// UpdateUser updates a hotspot user
+// UpdateUser updates a hotspot user.
 func (s *HotspotService) UpdateUser(ctx context.Context, routerID uint, userID string, req dto.UpdateUserRequest) error {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return err
 	}
@@ -163,22 +180,21 @@ func (s *HotspotService) UpdateUser(ctx context.Context, routerID uint, userID s
 		Disabled:        req.Disabled,
 	}
 
-	return s.client.UpdateHotspotUser(ctx, router, userID, user)
+	return c.UpdateHotspotUser(ctx, userID, user)
 }
 
-// GetUserProfiles retrieves user profiles from the specified router
+// GetUserProfiles retrieves user profiles from the specified router.
 func (s *HotspotService) GetUserProfiles(ctx context.Context, routerID uint) ([]dto.UserProfile, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
 
-	profiles, err := s.client.GetUserProfiles(ctx, router)
+	profiles, err := c.GetUserProfiles(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert to slice of values
 	result := make([]dto.UserProfile, len(profiles))
 	for i, p := range profiles {
 		result[i] = *p
@@ -186,9 +202,9 @@ func (s *HotspotService) GetUserProfiles(ctx context.Context, routerID uint) ([]
 	return result, nil
 }
 
-// AddUserProfile adds a user profile to the specified router
+// AddUserProfile adds a user profile to the specified router.
 func (s *HotspotService) AddUserProfile(ctx context.Context, routerID uint, req dto.ProfileRequest) (*dto.UserProfile, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +223,7 @@ func (s *HotspotService) AddUserProfile(ctx context.Context, routerID uint, req 
 		LockServer:   req.LockServer,
 	}
 
-	id, err := s.client.AddUserProfile(ctx, router, profile)
+	id, err := c.AddUserProfile(ctx, profile)
 	if err != nil {
 		return nil, err
 	}
@@ -216,9 +232,9 @@ func (s *HotspotService) AddUserProfile(ctx context.Context, routerID uint, req 
 	return profile, nil
 }
 
-// UpdateUserProfile updates a user profile
+// UpdateUserProfile updates a user profile.
 func (s *HotspotService) UpdateUserProfile(ctx context.Context, routerID uint, profileID string, req dto.ProfileUpdateRequest) (*dto.UserProfile, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +253,7 @@ func (s *HotspotService) UpdateUserProfile(ctx context.Context, routerID uint, p
 		LockServer:   req.LockServer,
 	}
 
-	if err := s.client.UpdateUserProfile(ctx, router, profileID, profile); err != nil {
+	if err := c.UpdateUserProfile(ctx, profileID, profile); err != nil {
 		return nil, err
 	}
 
@@ -245,29 +261,27 @@ func (s *HotspotService) UpdateUserProfile(ctx context.Context, routerID uint, p
 	return profile, nil
 }
 
-// DeleteUserProfile deletes a user profile
+// DeleteUserProfile deletes a user profile.
 func (s *HotspotService) DeleteUserProfile(ctx context.Context, routerID uint, profileID string) error {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return err
 	}
-
-	return s.client.RemoveUserProfile(ctx, router, profileID)
+	return c.RemoveUserProfile(ctx, profileID)
 }
 
-// GetActiveUsers retrieves active hotspot sessions
+// GetActiveUsers retrieves active hotspot sessions.
 func (s *HotspotService) GetActiveUsers(ctx context.Context, routerID uint) ([]dto.HotspotActive, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
 
-	actives, err := s.client.GetHotspotActive(ctx, router)
+	actives, err := c.GetHotspotActive(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert to slice of values
 	result := make([]dto.HotspotActive, len(actives))
 	for i, a := range actives {
 		result[i] = *a
@@ -275,19 +289,18 @@ func (s *HotspotService) GetActiveUsers(ctx context.Context, routerID uint) ([]d
 	return result, nil
 }
 
-// GetHosts retrieves hotspot hosts
+// GetHosts retrieves hotspot hosts.
 func (s *HotspotService) GetHosts(ctx context.Context, routerID uint) ([]dto.HotspotHost, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
 
-	hosts, err := s.client.GetHotspotHosts(ctx, router)
+	hosts, err := c.GetHotspotHosts(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert to slice of values
 	result := make([]dto.HotspotHost, len(hosts))
 	for i, h := range hosts {
 		result[i] = *h
@@ -295,50 +308,99 @@ func (s *HotspotService) GetHosts(ctx context.Context, routerID uint) ([]dto.Hot
 	return result, nil
 }
 
-// RemoveActiveUser removes an active hotspot session
+// RemoveActiveUser removes an active hotspot session.
 func (s *HotspotService) RemoveActiveUser(ctx context.Context, routerID uint, activeID string) error {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return err
 	}
-
-	return s.client.RemoveHotspotActive(ctx, router, activeID)
+	return c.RemoveHotspotActive(ctx, activeID)
 }
 
-// RemoveHost removes a hotspot host entry
+// RemoveHost removes a hotspot host entry.
 func (s *HotspotService) RemoveHost(ctx context.Context, routerID uint, hostID string) error {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return err
 	}
-
-	return s.client.RemoveHotspotHost(ctx, router, hostID)
+	return c.RemoveHotspotHost(ctx, hostID)
 }
 
-// ResetUserCounters resets a hotspot user's counters
+// ResetUserCounters resets a hotspot user's counters.
 func (s *HotspotService) ResetUserCounters(ctx context.Context, routerID uint, userID string) error {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return err
 	}
-
-	return s.client.ResetHotspotUserCounters(ctx, router, userID)
+	return c.ResetHotspotUserCounters(ctx, userID)
 }
 
-// SetupExpireMonitor ensures expire monitor scheduler exists and enabled
+// SetupExpireMonitor ensures expire monitor scheduler exists and is enabled.
 func (s *HotspotService) SetupExpireMonitor(ctx context.Context, routerID uint, script string) (string, error) {
-	router, err := s.routerRepo.GetByID(ctx, routerID)
+	c, err := s.client(ctx, routerID)
 	if err != nil {
 		return "", err
 	}
-
-	return s.client.EnsureExpireMonitor(ctx, router, script)
+	return c.EnsureExpireMonitor(ctx, script)
 }
 
-// UserFilter for filtering users
+// GetActiveCount retrieves the count of active hotspot sessions.
+func (s *HotspotService) GetActiveCount(ctx context.Context, routerID uint) (int, error) {
+	c, err := s.client(ctx, routerID)
+	if err != nil {
+		return 0, err
+	}
+	return c.GetHotspotActiveCount(ctx)
+}
+
+// GetProfileByID retrieves a user profile by ID.
+func (s *HotspotService) GetProfileByID(ctx context.Context, routerID uint, profileID string) (*dto.UserProfile, error) {
+	c, err := s.client(ctx, routerID)
+	if err != nil {
+		return nil, err
+	}
+	return c.GetUserProfileByID(ctx, profileID)
+}
+
+// GetProfileByName retrieves a user profile by name.
+func (s *HotspotService) GetProfileByName(ctx context.Context, routerID uint, profileName string) (*dto.UserProfile, error) {
+	c, err := s.client(ctx, routerID)
+	if err != nil {
+		return nil, err
+	}
+	return c.GetUserProfileByName(ctx, profileName)
+}
+
+// ListenActive starts a streaming subscription to active hotspot sessions.
+// No timeout is applied — the caller controls lifetime via ctx.
+func (s *HotspotService) ListenActive(
+	ctx context.Context,
+	routerID uint,
+	resultChan chan<- []*dto.HotspotActive,
+) (func() error, error) {
+	c, err := s.client(ctx, routerID)
+	if err != nil {
+		return nil, err
+	}
+	return c.ListenHotspotActive(ctx, resultChan)
+}
+
+// ListenInactive starts a streaming subscription to inactive hotspot users.
+// No timeout is applied — the caller controls lifetime via ctx.
+func (s *HotspotService) ListenInactive(
+	ctx context.Context,
+	routerID uint,
+	resultChan chan<- []*dto.HotspotUser,
+) (func() error, error) {
+	c, err := s.client(ctx, routerID)
+	if err != nil {
+		return nil, err
+	}
+	return c.ListenHotspotInactive(ctx, resultChan)
+}
+
+// UserFilter for filtering users.
 type UserFilter struct {
 	Profile string
 	Comment string
 }
-
-

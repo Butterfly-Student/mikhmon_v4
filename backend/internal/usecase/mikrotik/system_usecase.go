@@ -14,14 +14,14 @@ import (
 // SystemUseCase handles system business logic
 type SystemUseCase struct {
 	routerRepo  repository.RouterRepository
-	mikrotikSvc *mikrotik.Client
+	mikrotikSvc *mikrotik.Manager
 	log         *zap.Logger
 }
 
 // NewSystemUseCase creates a new system use case
 func NewSystemUseCase(
 	routerRepo repository.RouterRepository,
-	mikrotikSvc *mikrotik.Client,
+	mikrotikSvc *mikrotik.Manager,
 	log *zap.Logger,
 ) *SystemUseCase {
 	if log == nil {
@@ -34,9 +34,30 @@ func NewSystemUseCase(
 	}
 }
 
+// client resolves the *mikrotik.Client for the given routerID, connecting on demand.
+func (uc *SystemUseCase) client(ctx context.Context, routerID uint) (*mikrotik.Client, string, error) {
+	router, err := uc.routerRepo.GetByID(ctx, routerID)
+	if err != nil {
+		return nil, "", err
+	}
+	cfg := mikrotik.Config{
+		Host:     router.Host,
+		Port:     router.Port,
+		Username: router.Username,
+		Password: router.Password,
+		UseTLS:   router.UseSSL,
+		Timeout:  time.Duration(router.Timeout) * time.Second,
+	}
+	c, err := uc.mikrotikSvc.GetOrConnect(ctx, router.Name, cfg)
+	if err != nil {
+		return nil, router.Name, fmt.Errorf("router %q not connected: %w", router.Name, err)
+	}
+	return c, router.Name, nil
+}
+
 // GetResource retrieves system resources
 func (uc *SystemUseCase) GetResource(ctx context.Context, routerID uint) (*dto.SystemResource, error) {
-	router, err := uc.routerRepo.GetByID(ctx, routerID)
+	c, _, err := uc.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
@@ -44,12 +65,12 @@ func (uc *SystemUseCase) GetResource(ctx context.Context, routerID uint) (*dto.S
 	resourceCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return uc.mikrotikSvc.GetSystemResource(resourceCtx, router)
+	return c.GetSystemResource(resourceCtx)
 }
 
 // GetHealth retrieves system health
 func (uc *SystemUseCase) GetHealth(ctx context.Context, routerID uint) (*dto.SystemHealth, error) {
-	router, err := uc.routerRepo.GetByID(ctx, routerID)
+	c, _, err := uc.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
@@ -57,12 +78,12 @@ func (uc *SystemUseCase) GetHealth(ctx context.Context, routerID uint) (*dto.Sys
 	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return uc.mikrotikSvc.GetSystemHealth(healthCtx, router)
+	return c.GetSystemHealth(healthCtx)
 }
 
 // GetIdentity retrieves system identity
 func (uc *SystemUseCase) GetIdentity(ctx context.Context, routerID uint) (*dto.SystemIdentity, error) {
-	router, err := uc.routerRepo.GetByID(ctx, routerID)
+	c, _, err := uc.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
@@ -70,12 +91,12 @@ func (uc *SystemUseCase) GetIdentity(ctx context.Context, routerID uint) (*dto.S
 	identityCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return uc.mikrotikSvc.GetSystemIdentity(identityCtx, router)
+	return c.GetSystemIdentity(identityCtx)
 }
 
 // GetRouterBoardInfo retrieves routerboard information
 func (uc *SystemUseCase) GetRouterBoardInfo(ctx context.Context, routerID uint) (*dto.RouterBoardInfo, error) {
-	router, err := uc.routerRepo.GetByID(ctx, routerID)
+	c, _, err := uc.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
@@ -83,12 +104,12 @@ func (uc *SystemUseCase) GetRouterBoardInfo(ctx context.Context, routerID uint) 
 	rbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return uc.mikrotikSvc.GetRouterBoardInfo(rbCtx, router)
+	return c.GetRouterBoardInfo(rbCtx)
 }
 
 // GetClock retrieves system clock
 func (uc *SystemUseCase) GetClock(ctx context.Context, routerID uint) (*dto.SystemClock, error) {
-	router, err := uc.routerRepo.GetByID(ctx, routerID)
+	c, _, err := uc.client(ctx, routerID)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +117,7 @@ func (uc *SystemUseCase) GetClock(ctx context.Context, routerID uint) (*dto.Syst
 	clockCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return uc.mikrotikSvc.GetSystemClock(clockCtx, router)
+	return c.GetSystemClock(clockCtx)
 }
 
 // GetDashboardData retrieves complete dashboard data
@@ -111,27 +132,27 @@ func (uc *SystemUseCase) GetDashboardData(ctx context.Context, routerID uint) (*
 		RouterName: router.Name,
 	}
 
-	uc.log.Info("Fetching dashboard data",
-		zap.Uint("routerID", routerID),
-		zap.String("host", router.Host),
-	)
-
-	resourceCtx, resourceCancel := context.WithTimeout(ctx, 10*time.Second)
-	defer resourceCancel()
-
-	resource, err := uc.mikrotikSvc.GetSystemResource(resourceCtx, router)
+	cfg := mikrotik.Config{
+		Host:     router.Host,
+		Port:     router.Port,
+		Username: router.Username,
+		Password: router.Password,
+		UseTLS:   router.UseSSL,
+		Timeout:  time.Duration(router.Timeout) * time.Second,
+	}
+	c, err := uc.mikrotikSvc.GetOrConnect(ctx, router.Name, cfg)
 	if err != nil {
-		uc.log.Warn("GetSystemResource failed, returning partial data",
-			zap.Uint("routerID", routerID),
-			zap.Error(err),
-		)
-		dashboard.ConnectionError = fmt.Sprintf("Connection error: %v", err)
+		dashboard.ConnectionError = fmt.Sprintf("Router not connected: %v", err)
 		return dashboard, nil
 	}
-	dashboard.Resource = resource
+
+	uc.log.Info("Fetching dashboard data",
+		zap.Uint("routerID", routerID),
+		zap.String("router", router.Name),
+	)
 
 	identityCtx, identityCancel := context.WithTimeout(ctx, 10*time.Second)
-	identity, err := uc.mikrotikSvc.GetSystemIdentity(identityCtx, router)
+	identity, err := c.GetSystemIdentity(identityCtx)
 	identityCancel()
 	if err == nil {
 		dashboard.Identity = identity
@@ -140,7 +161,7 @@ func (uc *SystemUseCase) GetDashboardData(ctx context.Context, routerID uint) (*
 	}
 
 	rbCtx, rbCancel := context.WithTimeout(ctx, 10*time.Second)
-	routerboard, err := uc.mikrotikSvc.GetRouterBoardInfo(rbCtx, router)
+	routerboard, err := c.GetRouterBoardInfo(rbCtx)
 	rbCancel()
 	if err == nil {
 		dashboard.RouterBoard = routerboard
@@ -149,7 +170,7 @@ func (uc *SystemUseCase) GetDashboardData(ctx context.Context, routerID uint) (*
 	}
 
 	healthCtx, healthCancel := context.WithTimeout(ctx, 10*time.Second)
-	health, err := uc.mikrotikSvc.GetSystemHealth(healthCtx, router)
+	health, err := c.GetSystemHealth(healthCtx)
 	healthCancel()
 	if err == nil {
 		dashboard.Health = health
@@ -161,12 +182,12 @@ func (uc *SystemUseCase) GetDashboardData(ctx context.Context, routerID uint) (*
 	defer statsCancel()
 
 	stats := &dto.HotspotStats{}
-	if totalUsers, err := uc.mikrotikSvc.GetHotspotUsersCount(statsCtx, router); err == nil {
+	if totalUsers, err := c.GetHotspotUsersCount(statsCtx); err == nil {
 		stats.TotalUsers = totalUsers
 	} else {
 		uc.log.Warn("GetHotspotUsersCount failed", zap.Uint("routerID", routerID), zap.Error(err))
 	}
-	if activeUsers, err := uc.mikrotikSvc.GetHotspotActiveCount(statsCtx, router); err == nil {
+	if activeUsers, err := c.GetHotspotActiveCount(statsCtx); err == nil {
 		stats.ActiveUsers = activeUsers
 	} else {
 		uc.log.Warn("GetHotspotActiveCount failed", zap.Uint("routerID", routerID), zap.Error(err))

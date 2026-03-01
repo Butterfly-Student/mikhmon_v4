@@ -12,7 +12,6 @@ import {
   RefreshCw,
   Users,
   PieChart,
-  Wifi,
   Laptop,
   Eye,
   EyeOff,
@@ -22,6 +21,7 @@ import {
   Filter,
   UserPlus,
   ShieldCheck,
+  Wifi,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { clsx } from 'clsx'
@@ -90,83 +90,88 @@ export function HotspotPage() {
     queryFn: () => hotspotApi.getHosts(routerId),
   })
 
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
+      className="space-y-0"
     >
-      {/* Header with Tabs */}
-      <Card>
-        <Card.Header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Wifi className="w-5 h-5 text-primary-500" />
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Hotspot</h1>
-          </div>
-          
-          {/* Tabs */}
-          <div className="flex flex-wrap gap-1">
+      {/* Single unified card: tabs at top, content below */}
+      <div className="rounded-2xl border border-gray-100 dark:border-dark-700 bg-white dark:bg-dark-800 shadow-card overflow-hidden">
+        {/* Tab Bar — fused as the card header */}
+        <div className="flex items-center justify-between px-4 border-b border-gray-100 dark:border-dark-700 bg-gray-50/50 dark:bg-dark-800">
+          <div className="flex items-center">
             {tabs.map((tab) => {
               const Icon = tab.icon
+              const isActive = activeTab === tab.id
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={clsx(
-                    'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
-                    activeTab === tab.id
-                      ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-700 hover:text-gray-900 dark:hover:text-gray-100'
+                    'relative flex items-center gap-1.5 px-3 sm:px-4 py-3.5 text-sm font-semibold transition-colors',
+                    isActive
+                      ? 'text-primary-600 dark:text-primary-400'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   )}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-4 h-4 shrink-0" />
                   <span className="hidden sm:inline">{tab.name}</span>
+                  {/* Active indicator line */}
+                  {isActive && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-500 rounded-full" />
+                  )}
                 </button>
               )
             })}
           </div>
-        </Card.Header>
-      </Card>
+          <div className="text-xs text-gray-400 dark:text-gray-500 font-medium hidden sm:block">
+            {selectedRouter ? selectedRouter.name : 'No router selected'}
+          </div>
+        </div>
 
-      {/* Tab Content */}
-      <div className="mt-6">
-        {activeTab === 'users' && (
-          <UsersTab
-            users={users || []}
-            profiles={profiles || []}
-            isLoading={usersLoading}
-            routerId={routerId}
-            queryClient={queryClient}
-            refetch={refetchUsers}
-          />
-        )}
-        {activeTab === 'profiles' && (
-          <ProfilesTab
-            profiles={profiles || []}
-            isLoading={profilesLoading}
-            routerId={routerId}
-            queryClient={queryClient}
-            refetch={refetchProfiles}
-          />
-        )}
-        {activeTab === 'active' && (
-          <ActiveTab
-            activeUsers={activeUsers || []}
-            isLoading={activeLoading}
-            refetch={refetchActive}
-          />
-        )}
-        {activeTab === 'hosts' && (
-          <HostsTab
-            hosts={hosts || []}
-            isLoading={hostsLoading}
-            refetch={refetchHosts}
-          />
-        )}
+        {/* Tab Content — seamlessly continues in the same card */}
+        <div>
+          {activeTab === 'users' && (
+            <UsersTab
+              users={users || []}
+              profiles={profiles || []}
+              isLoading={usersLoading}
+              routerId={routerId}
+              queryClient={queryClient}
+              refetch={refetchUsers}
+            />
+          )}
+          {activeTab === 'profiles' && (
+            <ProfilesTab
+              profiles={profiles || []}
+              isLoading={profilesLoading}
+              routerId={routerId}
+              queryClient={queryClient}
+              refetch={refetchProfiles}
+            />
+          )}
+          {activeTab === 'active' && (
+            <ActiveTab
+              activeUsers={activeUsers || []}
+              isLoading={activeLoading}
+              refetch={refetchActive}
+            />
+          )}
+          {activeTab === 'hosts' && (
+            <HostsTab
+              hosts={hosts || []}
+              isLoading={hostsLoading}
+              refetch={refetchHosts}
+            />
+          )}
+        </div>
       </div>
     </motion.div>
   )
 }
+
 
 // Users Tab Component
 function UsersTab({
@@ -272,7 +277,7 @@ function UsersTab({
 
   const filteredUsers = users.filter((user) => {
     const profileStr = typeof user.profile === 'string' ? user.profile : user.profile?.name || ''
-    const matchesSearch = 
+    const matchesSearch =
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       profileStr.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.comment?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -373,9 +378,9 @@ function UsersTab({
               <UserPlus className="w-4 h-4 mr-1" />
               Add
             </Button>
-            <Button 
-              variant="secondary" 
-              size="sm" 
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => window.location.href = '/vouchers/generate'}
               className="whitespace-nowrap"
             >
@@ -1030,3 +1035,4 @@ function HostsTab({
     </Card>
   )
 }
+

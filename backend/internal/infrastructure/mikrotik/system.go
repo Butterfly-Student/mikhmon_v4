@@ -4,21 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/go-routeros/routeros/v3/proto"
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
-	"github.com/irhabi89/mikhmon/internal/domain/entity"
 )
 
-// GetSystemResource retrieves system resource information
-func (c *Client) GetSystemResource(ctx context.Context, router *entity.Router) (*dto.SystemResource, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
-	reply, err := client.RunContext(ctx, "/system/resource/print")
+// GetSystemResource retrieves system resource information.
+func (c *Client) GetSystemResource(ctx context.Context) (*dto.SystemResource, error) {
+	reply, err := c.RunContext(ctx, "/system/resource/print")
 	if err != nil {
 		return nil, err
 	}
@@ -32,32 +25,28 @@ func (c *Client) GetSystemResource(ctx context.Context, router *entity.Router) (
 		Uptime:               re.Map["uptime"],
 		Version:              re.Map["version"],
 		BuildTime:            re.Map["build-time"],
-		FreeMemory:           parseInt(re.Map["free-memory"]),
-		TotalMemory:          parseInt(re.Map["total-memory"]),
-		FreeHddSpace:         parseInt(re.Map["free-hdd-space"]),
-		TotalHddSpace:        parseInt(re.Map["total-hdd-space"]),
+		FreeMemory:           parseByteSize(re.Map["free-memory"]),
+		TotalMemory:          parseByteSize(re.Map["total-memory"]),
+		FreeHddSpace:         parseByteSize(re.Map["free-hdd-space"]),
+		TotalHddSpace:        parseByteSize(re.Map["total-hdd-space"]),
 		WriteSectSinceReboot: parseInt(re.Map["write-sect-since-reboot"]),
 		WriteSectTotal:       parseInt(re.Map["write-sect-total"]),
-		BadBlocks:            parseFloat(re.Map["bad-blocks"]),
+		BadBlocks:            parsePercentageFloat(re.Map["bad-blocks"]),
 		ArchitectureName:     re.Map["architecture-name"],
 		BoardName:            re.Map["board-name"],
+		Platform:             re.Map["platform"],
 		Cpu:                  re.Map["cpu"],
 		CpuCount:             int(parseInt(re.Map["cpu-count"])),
 		CpuFrequency:         int(parseInt(re.Map["cpu-frequency"])),
-		CpuLoad:              int(parseInt(re.Map["cpu-load"])),
+		CpuLoad:              parsePercentage(re.Map["cpu-load"]),
 	}, nil
 }
 
-// GetSystemHealth retrieves system health information
-func (c *Client) GetSystemHealth(ctx context.Context, router *entity.Router) (*dto.SystemHealth, error) {
-	client, err := c.getClient(router)
+// GetSystemHealth retrieves system health information.
+func (c *Client) GetSystemHealth(ctx context.Context) (*dto.SystemHealth, error) {
+	reply, err := c.RunContext(ctx, "/system/health/print")
 	if err != nil {
-		return nil, err
-	}
-
-	reply, err := client.RunContext(ctx, "/system/health/print")
-	if err != nil {
-		// Some routers might not have health monitoring
+		// Some routers might not have health monitoring.
 		return &dto.SystemHealth{}, nil
 	}
 
@@ -75,14 +64,9 @@ func (c *Client) GetSystemHealth(ctx context.Context, router *entity.Router) (*d
 	}, nil
 }
 
-// GetSystemIdentity retrieves system identity
-func (c *Client) GetSystemIdentity(ctx context.Context, router *entity.Router) (*dto.SystemIdentity, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
-	reply, err := client.RunContext(ctx, "/system/identity/print")
+// GetSystemIdentity retrieves system identity.
+func (c *Client) GetSystemIdentity(ctx context.Context) (*dto.SystemIdentity, error) {
+	reply, err := c.RunContext(ctx, "/system/identity/print")
 	if err != nil {
 		return nil, err
 	}
@@ -96,14 +80,9 @@ func (c *Client) GetSystemIdentity(ctx context.Context, router *entity.Router) (
 	}, nil
 }
 
-// GetSystemClock retrieves system clock information
-func (c *Client) GetSystemClock(ctx context.Context, router *entity.Router) (*dto.SystemClock, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
-	reply, err := client.RunContext(ctx, "/system/clock/print")
+// GetSystemClock retrieves system clock information.
+func (c *Client) GetSystemClock(ctx context.Context) (*dto.SystemClock, error) {
+	reply, err := c.RunContext(ctx, "/system/clock/print")
 	if err != nil {
 		return nil, err
 	}
@@ -122,14 +101,9 @@ func (c *Client) GetSystemClock(ctx context.Context, router *entity.Router) (*dt
 	}, nil
 }
 
-// GetRouterBoardInfo retrieves routerboard information
-func (c *Client) GetRouterBoardInfo(ctx context.Context, router *entity.Router) (*dto.RouterBoardInfo, error) {
-	client, err := c.getClient(router)
-	if err != nil {
-		return nil, err
-	}
-
-	reply, err := client.RunContext(ctx, "/system/routerboard/print")
+// GetRouterBoardInfo retrieves routerboard information.
+func (c *Client) GetRouterBoardInfo(ctx context.Context) (*dto.RouterBoardInfo, error) {
+	reply, err := c.RunContext(ctx, "/system/routerboard/print")
 	if err != nil {
 		return nil, err
 	}
@@ -150,80 +124,41 @@ func (c *Client) GetRouterBoardInfo(ctx context.Context, router *entity.Router) 
 	}, nil
 }
 
-
 // ==================== System Resource Monitor ====================
 
-
-
-// SystemResourceMonitorStats represents real-time system resource statistics
-// Mapping dari: /system/resource/monitor
-// Output contoh:
-//   cpu-used: 4%
-//   free-memory: 6756KiB
-type SystemResourceMonitorStats struct {
-	CPUUsed         int       `json:"cpuUsed"`         // CPU usage percentage
-	FreeMemory      int64     `json:"freeMemory"`      // Free memory in bytes
-	TotalMemory     int64     `json:"totalMemory"`     // Total memory in bytes
-	FreeHddSpace    int64     `json:"freeHddSpace"`    // Free HDD space in bytes
-	TotalHddSpace   int64     `json:"totalHddSpace"`   // Total HDD space in bytes
-	WriteSectSinceReboot int64 `json:"writeSectSinceReboot"` // Write sectors since reboot
-	Uptime          string    `json:"uptime"`          // System uptime
-	Timestamp       time.Time `json:"timestamp"`
-}
-
-// StartSystemResourceMonitorListen starts listening to system resource statistics from MikroTik using
-// the RouterOS ListenArgsContext API for real-time streaming.
-// RouterOS /system/resource/monitor menghasilkan stream !re sentences berkelanjutan.
+// StartSystemResourceMonitorListen starts streaming system resource statistics.
+// Menggunakan /system/resource/print interval=1s sehingga semua field diperbarui
+// setiap detik secara real-time dalam satu koneksi tanpa fetch statis terpisah.
 //
-// PENTING: Resource monitor menggunakan koneksi DEDICATED (bukan dari pool) karena streaming
-// command memblokir koneksi — jika menggunakan pooled connection, health check
-// dari goroutine lain akan conflict dengan stream yang sedang berjalan.
+// Karena Client menggunakan async mode, Listen dan Run dapat berjalan
+// bersamaan pada koneksi yang sama tanpa saling memblokir.
 func (c *Client) StartSystemResourceMonitorListen(
 	ctx context.Context,
-	router *entity.Router,
-	resultChan chan<- SystemResourceMonitorStats,
+	resultChan chan<- dto.SystemResourceMonitorStats,
 ) (func() error, error) {
-
-	// Dial koneksi BARU yang dedicated — tidak dari pool.
-	client, err := c.dial(router)
+	listenReply, err := c.ListenArgsContext(ctx, []string{
+		"/system/resource/print",
+		"=interval=1s",
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect for resource monitor: %w", err)
-	}
-
-	// Build command: /system/resource/monitor
-	// ListenArgsContext menerima []string (bukan variadic)
-	args := []string{
-		"/system/resource/monitor",
-	}
-
-	// Start listening menggunakan ListenArgsContext
-	listenReply, err := client.ListenArgsContext(ctx, args)
-	if err != nil {
-		client.Close()
 		return nil, fmt.Errorf("failed to start resource monitor listen: %w", err)
 	}
 
-	// Process replies in a goroutine
 	go func() {
 		defer close(resultChan)
-		defer client.Close() // Tutup koneksi dedicated ketika selesai
 
 		for {
 			select {
 			case <-ctx.Done():
-				// Context cancelled, cancel the RouterOS command
 				listenReply.Cancel()
 				return
 
 			case sentence, ok := <-listenReply.Chan():
 				if !ok {
-					// Channel closed (done or cancelled)
 					return
 				}
 
-				// Parse the sentence
-				result := parseSystemResourceMonitorSentence(sentence)
-				result.Timestamp = time.Now()
+				result := parseSystemResourcePrintSentence(sentence)
 
 				select {
 				case resultChan <- result:
@@ -235,35 +170,49 @@ func (c *Client) StartSystemResourceMonitorListen(
 		}
 	}()
 
-	// Return cancel function
 	return func() error {
 		_, err := listenReply.Cancel()
 		return err
 	}, nil
 }
 
-// parseSystemResourceMonitorSentence parses a proto.Sentence into SystemResourceMonitorStats.
-// RouterOS mengembalikan nilai dengan format seperti "4%" untuk cpu-used dan "6756KiB" untuk memory.
-func parseSystemResourceMonitorSentence(sentence *proto.Sentence) SystemResourceMonitorStats {
+// parseSystemResourcePrintSentence parses a proto.Sentence from /system/resource/print
+// into dto.SystemResourceMonitorStats. Semua field tersedia karena print interval=1s
+// mengembalikan data lengkap setiap iterasi.
+func parseSystemResourcePrintSentence(sentence *proto.Sentence) dto.SystemResourceMonitorStats {
 	m := sentence.Map
 
-	return SystemResourceMonitorStats{
-		CPUUsed:              parsePercentage(m["cpu-used"]),
+	rawData := make(map[string]string, len(m))
+	for k, v := range m {
+		rawData[k] = v
+	}
+
+	return dto.SystemResourceMonitorStats{
+		Uptime:               m["uptime"],
+		Version:              m["version"],
+		BuildTime:            m["build-time"],
 		FreeMemory:           parseByteSize(m["free-memory"]),
 		TotalMemory:          parseByteSize(m["total-memory"]),
+		CPU:                  m["cpu"],
+		CPUCount:             int(parseInt(m["cpu-count"])),
+		CPUFrequency:         int(parseByteSize(m["cpu-frequency"])), // e.g. "680MHz" → 680
+		CPULoad:              parsePercentage(m["cpu-load"]),
 		FreeHddSpace:         parseByteSize(m["free-hdd-space"]),
 		TotalHddSpace:        parseByteSize(m["total-hdd-space"]),
 		WriteSectSinceReboot: parseInt(m["write-sect-since-reboot"]),
-		Uptime:               m["uptime"],
+		WriteSectTotal:       parseInt(m["write-sect-total"]),
+		BadBlocks:            parsePercentageFloat(m["bad-blocks"]),
+		ArchitectureName:     m["architecture-name"],
+		BoardName:            m["board-name"],
+		Platform:             m["platform"],
 	}
 }
 
-// parsePercentage parses percentage string like "4%" to int
+// parsePercentage parses a percentage string like "4%" to int.
 func parsePercentage(s string) int {
 	if s == "" {
 		return 0
 	}
-	// Remove % suffix
 	if len(s) > 1 && s[len(s)-1] == '%' {
 		s = s[:len(s)-1]
 	}
@@ -271,13 +220,24 @@ func parsePercentage(s string) int {
 	return i
 }
 
-// parseByteSize parses byte size strings like "6756KiB", "10MiB", "2GiB" to int64
+// parsePercentageFloat parses a percentage string like "0%" or "13.5%" to float64.
+func parsePercentageFloat(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	if len(s) > 1 && s[len(s)-1] == '%' {
+		s = s[:len(s)-1]
+	}
+	f, _ := strconv.ParseFloat(s, 64)
+	return f
+}
+
+// parseByteSize parses byte size strings like "6.4MiB", "6756KiB", "10MiB", "2GiB" to int64.
 func parseByteSize(s string) int64 {
 	if s == "" {
 		return 0
 	}
 
-	// Map of suffixes to multipliers
 	multipliers := map[string]int64{
 		"KiB": 1024,
 		"MiB": 1024 * 1024,
@@ -288,20 +248,20 @@ func parseByteSize(s string) int64 {
 		"GB":  1024 * 1024 * 1024,
 		"TB":  1024 * 1024 * 1024 * 1024,
 		"B":   1,
+		"MHz": 1,
+		"GHz": 1000,
 	}
 
-	// Try to find and remove suffix
 	for suffix, multiplier := range multipliers {
 		if len(s) > len(suffix) && s[len(s)-len(suffix):] == suffix {
 			numStr := s[:len(s)-len(suffix)]
-			if val, err := strconv.ParseInt(numStr, 10, 64); err == nil {
-				return val * multiplier
+			if val, err := strconv.ParseFloat(numStr, 64); err == nil {
+				return int64(val * float64(multiplier))
 			}
 			return 0
 		}
 	}
 
-	// No suffix found, try parsing as plain number
 	val, _ := strconv.ParseInt(s, 10, 64)
 	return val
 }

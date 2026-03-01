@@ -2,6 +2,7 @@ package mikrotik
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/irhabi89/mikhmon/internal/domain/dto"
@@ -13,14 +14,14 @@ import (
 // InterfaceUseCase handles interface business logic
 type InterfaceUseCase struct {
 	routerRepo  repository.RouterRepository
-	mikrotikSvc *mikrotik.Client
+	mikrotikSvc *mikrotik.Manager
 	log         *zap.Logger
 }
 
 // NewInterfaceUseCase creates a new interface use case
 func NewInterfaceUseCase(
 	routerRepo repository.RouterRepository,
-	mikrotikSvc *mikrotik.Client,
+	mikrotikSvc *mikrotik.Manager,
 	log *zap.Logger,
 ) *InterfaceUseCase {
 	if log == nil {
@@ -40,10 +41,15 @@ func (uc *InterfaceUseCase) GetInterfaces(ctx context.Context, routerID uint) ([
 		return nil, err
 	}
 
+	c, err := connectRouter(ctx, uc.mikrotikSvc, router)
+	if err != nil {
+		return nil, fmt.Errorf("router %q not connected: %w", router.Name, err)
+	}
+
 	interfacesCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return uc.mikrotikSvc.GetInterfaces(interfacesCtx, router)
+	return c.GetInterfaces(interfacesCtx)
 }
 
 // GetTraffic retrieves traffic stats for an interface (single reading)
@@ -53,11 +59,16 @@ func (uc *InterfaceUseCase) GetTraffic(ctx context.Context, routerID uint, iface
 		return nil, err
 	}
 
+	c, err := connectRouter(ctx, uc.mikrotikSvc, router)
+	if err != nil {
+		return nil, fmt.Errorf("router %q not connected: %w", router.Name, err)
+	}
+
 	monitorCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	resultChan := make(chan mikrotik.TrafficMonitorStats, 1)
-	_, err = uc.mikrotikSvc.StartTrafficMonitorListen(monitorCtx, router, iface, resultChan)
+	resultChan := make(chan dto.TrafficMonitorStats, 1)
+	_, err = c.StartTrafficMonitorListen(monitorCtx, iface, resultChan)
 	if err != nil {
 		return nil, err
 	}
@@ -81,8 +92,6 @@ func (uc *InterfaceUseCase) GetTraffic(ctx context.Context, routerID uint, iface
 			TxErrorsPerSecond:     stats.TxErrorsPerSecond,
 		}, nil
 	case <-monitorCtx.Done():
-		return &dto.TrafficStats{
-			Name: iface,
-		}, nil
+		return &dto.TrafficStats{Name: iface}, nil
 	}
 }

@@ -15,8 +15,8 @@ import {
   AlertTriangle,
   Gauge,
   Network,
+  Radio,
 } from 'lucide-react'
-import toast from 'react-hot-toast'
 
 import { StatCard } from '../components/common/StatCard'
 import { Card } from '../components/ui/Card'
@@ -55,18 +55,19 @@ export function DashboardPage() {
     console.log('[DashboardPage] Rendered - routerId:', routerId, 'selectedRouter:', selectedRouter)
   }
 
-  // Use WebSocket for realtime system resources instead of polling
-  const { stats: resources } = useResourceWebSocket(routerId)
+  // WebSocket realtime — semua data resource diambil dari sini
+  const { stats: resources, isConnected } = useResourceWebSocket(routerId)
+  console.log('[DashboardPage] Resource stats:', resources, 'WebSocket connected:', isConnected)
 
-  const { data: systemInfo, error: systemInfoError, isLoading: systemInfoLoading } = useQuery({
-    queryKey: ['systemInfo', routerId],
-    queryFn: () => dashboardApi.getSystemInfo(routerId),
-    refetchInterval: 30000,
+  // REST queries hanya untuk data yang tidak tersedia di WS resource monitor
+  const { data: identityInfo } = useQuery({
+    queryKey: ['identity', routerId],
+    queryFn: () => dashboardApi.getIdentity(routerId),
+    refetchInterval: 60000,
     enabled: !!routerId,
     retry: 2,
   })
 
-  // Individual Queries
   const { data: totalUsersCount } = useQuery({
     queryKey: ['usersCount', routerId],
     queryFn: () => hotspotApi.getUsersCount(routerId),
@@ -83,32 +84,8 @@ export function DashboardPage() {
     retry: 2,
   })
 
-  const { data: routerBoardInfo } = useQuery({
-    queryKey: ['routerBoard', routerId],
-    queryFn: () => dashboardApi.getRouterBoard(routerId),
-    refetchInterval: 60000,
-    enabled: !!routerId,
-    retry: 2,
-  })
-
-  const { data: identityInfo } = useQuery({
-    queryKey: ['identity', routerId],
-    queryFn: () => dashboardApi.getIdentity(routerId),
-    refetchInterval: 60000,
-    enabled: !!routerId,
-    retry: 2,
-  })
-
   const activeUsersCount = activeUsers?.length || 0
-  const isOnline = !!systemInfo || !!totalUsersCount || !!activeUsers
-
-  // Show error toast if there's a connection error
-  if (systemInfoError && !systemInfoLoading) {
-    const errorMsg = systemInfoError instanceof Error ? systemInfoError.message : 'Failed to load router info'
-    if (errorMsg.includes('connection') || errorMsg.includes('Network Error') || errorMsg.includes('timeout')) {
-      toast.error('Cannot connect to router. Please check your network settings.', { id: 'dashboard-error', duration: 5000 })
-    }
-  }
+  const isOnline = isConnected || !!totalUsersCount || !!activeUsers
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -136,7 +113,7 @@ export function DashboardPage() {
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
           <p className="text-gray-500 dark:text-gray-400">
             Router: <span className="font-medium text-primary-600 dark:text-primary-400">{selectedRouter?.name || 'Loading...'}</span>
             {selectedRouter?.id && <span className="text-xs text-gray-400 ml-2">(ID: {selectedRouter.id})</span>}
@@ -158,19 +135,18 @@ export function DashboardPage() {
         </div>
       </motion.div>
 
-      {/* Error Banner */}
-      {systemInfoError && !systemInfoLoading && (
+      {/* WS Disconnected Banner */}
+      {!isConnected && (
         <motion.div variants={itemVariants}>
-          <Card className="bg-danger-50 dark:bg-danger-900/20 border-danger-200 dark:border-danger-800">
+          <Card className="bg-warning-50 dark:bg-warning-900/20 border-warning-200 dark:border-warning-800">
             <Card.Body className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-danger-600 dark:text-danger-400 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h3 className="font-semibold text-danger-900 dark:text-danger-100 mb-1">
-                  Connection Error
+                <h3 className="font-semibold text-warning-900 dark:text-warning-100 mb-1">
+                  Resource Monitor Disconnected
                 </h3>
-                <p className="text-sm text-danger-700 dark:text-danger-300">
-                  {systemInfoError.message ||
-                    'Failed to connect to MikroTik router. Please verify the router is online and credentials are correct.'}
+                <p className="text-sm text-warning-700 dark:text-warning-300">
+                  Waiting for realtime data from router. Reconnecting automatically...
                 </p>
                 <div className="mt-3 flex gap-2">
                   <Button
@@ -258,12 +234,18 @@ export function DashboardPage() {
           {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* System Resources */}
-            <motion.div variants={itemVariants}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="h-full">
                 <Card.Header>
-                  <div className="flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-primary-500" />
-                    <h3 className="font-semibold text-gray-900 dark:text-white">System Resources</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-5 h-5 text-primary-500" />
+                      <h3 className="font-semibold text-gray-900 dark:text-white">System Resources</h3>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                      <Radio className={`w-3 h-3 ${isConnected ? 'text-success-500 animate-pulse' : 'text-gray-400'}`} />
+                      {isConnected ? 'Live' : 'Connecting…'}
+                    </div>
                   </div>
                 </Card.Header>
                 <Card.Body className="space-y-5">
@@ -273,13 +255,16 @@ export function DashboardPage() {
                       <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                         <Cpu className="w-4 h-4" />
                         CPU Load
+                        {resources?.cpu && (
+                          <span className="text-xs text-gray-400">({resources.cpu})</span>
+                        )}
                       </div>
-                      <span className="text-sm font-medium">{resources?.cpuUsed ?? 0}%</span>
+                      <span className="text-sm font-medium">{resources?.cpuLoad ?? 0}%</span>
                     </div>
                     <div className="progress-bar">
                       <div
                         className="progress-bar-fill bg-gradient-to-r from-primary-500 to-primary-600"
-                        style={{ width: `${resources?.cpuUsed ?? 0}%` }}
+                        style={{ width: `${resources?.cpuLoad ?? 0}%` }}
                       />
                     </div>
                   </div>
@@ -299,7 +284,7 @@ export function DashboardPage() {
                       <div
                         className="progress-bar-fill bg-gradient-to-r from-secondary-500 to-secondary-600"
                         style={{
-                          width: `${resources?.totalMemory ? ((resources?.totalMemory - (resources?.freeMemory ?? 0)) / resources?.totalMemory * 100) : 0}%`
+                          width: `${resources?.totalMemory ? ((resources.totalMemory - (resources.freeMemory ?? 0)) / resources.totalMemory * 100) : 0}%`
                         }}
                       />
                     </div>
@@ -320,7 +305,7 @@ export function DashboardPage() {
                       <div
                         className="progress-bar-fill bg-gradient-to-r from-warning-500 to-warning-600"
                         style={{
-                          width: `${resources?.totalHddSpace ? ((resources?.totalHddSpace - (resources?.freeHddSpace ?? 0)) / resources?.totalHddSpace * 100) : 0}%`
+                          width: `${resources?.totalHddSpace ? ((resources.totalHddSpace - (resources.freeHddSpace ?? 0)) / resources.totalHddSpace * 100) : 0}%`
                         }}
                       />
                     </div>
@@ -330,7 +315,7 @@ export function DashboardPage() {
             </motion.div>
 
             {/* System Info */}
-            <motion.div variants={itemVariants}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <Card className="h-full">
                 <Card.Header>
                   <div className="flex items-center gap-2">
@@ -341,11 +326,13 @@ export function DashboardPage() {
                 <Card.Body>
                   <div className="space-y-4">
                     {[
-                      { label: 'Uptime', value: systemInfo?.uptime || resources?.uptime || '-' },
-                      { label: 'Board Name', value: systemInfo?.boardName || routerBoardInfo?.boardName || '-' },
-                      { label: 'Model', value: systemInfo?.model || routerBoardInfo?.model || '-' },
-                      { label: 'RouterOS', value: systemInfo?.version || routerBoardInfo?.version || '-' },
-                      { label: 'Identity', value: identityInfo?.name || '-' },
+                      { label: 'Uptime',    value: resources?.uptime   || '-' },
+                      { label: 'Identity',  value: identityInfo?.name  || '-' },
+                      { label: 'Board',     value: resources?.boardName || '-' },
+                      { label: 'Platform',  value: resources?.platform  || '-' },
+                      { label: 'RouterOS',  value: resources?.version   || '-' },
+                      { label: 'CPU',       value: resources?.cpu        || '-' },
+                      { label: 'CPU Freq',  value: resources?.cpuFrequency ? `${resources.cpuFrequency} MHz` : '-' },
                     ].map((item) => (
                       <div key={item.label} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-dark-700 last:border-0">
                         <span className="text-sm text-gray-500 dark:text-gray-400">{item.label}</span>
@@ -358,7 +345,7 @@ export function DashboardPage() {
             </motion.div>
 
             {/* Quick Actions */}
-            <motion.div variants={itemVariants}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <Card className="h-full">
                 <Card.Header>
                   <div className="flex items-center gap-2">
@@ -456,3 +443,4 @@ export function DashboardPage() {
     </motion.div>
   )
 }
+

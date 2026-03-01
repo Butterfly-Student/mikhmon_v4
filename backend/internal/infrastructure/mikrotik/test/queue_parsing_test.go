@@ -1,9 +1,10 @@
-package mikrotik
+package mikrotik_test
 
 import (
 	"testing"
 
 	"github.com/go-routeros/routeros/v3/proto"
+	"github.com/irhabi89/mikhmon/internal/infrastructure/mikrotik"
 )
 
 func TestParseRate(t *testing.T) {
@@ -27,9 +28,9 @@ func TestParseRate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := parseRate(tt.input)
+			result := mikrotik.ParseRate(tt.input)
 			if result != tt.expected {
-				t.Errorf("parseRate(%q) = %d, want %d", tt.input, result, tt.expected)
+				t.Errorf("ParseRate(%q) = %d, want %d", tt.input, result, tt.expected)
 			}
 		})
 	}
@@ -37,10 +38,10 @@ func TestParseRate(t *testing.T) {
 
 func TestSplitRateValue(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		wantIn   int64
-		wantOut  int64
+		name    string
+		input   string
+		wantIn  int64
+		wantOut int64
 	}{
 		{
 			name:    "rate dengan unit",
@@ -76,12 +77,12 @@ func TestSplitRateValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotIn, gotOut := splitRateValue(tt.input)
+			gotIn, gotOut := mikrotik.SplitRateValue(tt.input)
 			if gotIn != tt.wantIn {
-				t.Errorf("splitRateValue() gotIn = %v, want %v", gotIn, tt.wantIn)
+				t.Errorf("SplitRateValue() gotIn = %v, want %v", gotIn, tt.wantIn)
 			}
 			if gotOut != tt.wantOut {
-				t.Errorf("splitRateValue() gotOut = %v, want %v", gotOut, tt.wantOut)
+				t.Errorf("SplitRateValue() gotOut = %v, want %v", gotOut, tt.wantOut)
 			}
 		})
 	}
@@ -89,10 +90,10 @@ func TestSplitRateValue(t *testing.T) {
 
 func TestSplitSlashValue(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		wantIn   int64
-		wantOut  int64
+		name    string
+		input   string
+		wantIn  int64
+		wantOut int64
 	}{
 		{
 			name:    "bytes dengan nilai besar",
@@ -124,45 +125,42 @@ func TestSplitSlashValue(t *testing.T) {
 			wantIn:  12345,
 			wantOut: 0,
 		},
-
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotIn, gotOut := splitSlashValue(tt.input)
+			gotIn, gotOut := mikrotik.SplitSlashValue(tt.input)
 			if gotIn != tt.wantIn {
-				t.Errorf("splitSlashValue() gotIn = %v, want %v", gotIn, tt.wantIn)
+				t.Errorf("SplitSlashValue() gotIn = %v, want %v", gotIn, tt.wantIn)
 			}
 			if gotOut != tt.wantOut {
-				t.Errorf("splitSlashValue() gotOut = %v, want %v", gotOut, tt.wantOut)
+				t.Errorf("SplitSlashValue() gotOut = %v, want %v", gotOut, tt.wantOut)
 			}
 		})
 	}
 }
 
 func TestParseQueueStatsSentence(t *testing.T) {
-	// Simulasi proto.Sentence dengan Map seperti dari MikroTik
-	// proto.Sentence memiliki field Map bertipe map[string]string
 	sentence := &proto.Sentence{
 		Map: map[string]string{
-			"bytes":                 "11519824317/96401664078",
-			"packets":               "51272188/83514119",
-			"queued-bytes":          "0/0",
-			"queued-packets":        "0/0",
-			"dropped":               "0/0",
-			"rate":                  "74/2200", // simplified, tanpa unit
-			"packet-rate":           "97/217",
-			"total-bytes":           "0",
-			"total-packets":         "0",
-			"total-queued-bytes":    "0",
-			"total-queued-packets":  "0",
-			"total-dropped":         "0",
-			"total-rate":            "0",
-			"total-packet-rate":     "0",
+			"bytes":                "11519824317/96401664078",
+			"packets":              "51272188/83514119",
+			"queued-bytes":         "0/0",
+			"queued-packets":       "0/0",
+			"dropped":              "0/0",
+			"rate":                 "74/2200",
+			"packet-rate":          "97/217",
+			"total-bytes":          "0",
+			"total-packets":        "0",
+			"total-queued-bytes":   "0",
+			"total-queued-packets": "0",
+			"total-dropped":        "0",
+			"total-rate":           "0",
+			"total-packet-rate":    "0",
 		},
 	}
 
-	result := parseQueueStatsSentence(sentence, "TestQueue")
+	result := mikrotik.ParseQueueStatsSentence(sentence, "TestQueue")
 
 	if result.Name != "TestQueue" {
 		t.Errorf("Expected Name = TestQueue, got %s", result.Name)
@@ -185,14 +183,12 @@ func TestParseQueueStatsSentence(t *testing.T) {
 	if result.TotalPackets != 0 {
 		t.Errorf("Expected TotalPackets = 0, got %d", result.TotalPackets)
 	}
-	// Test Queued fields
 	if result.QueuedBytesIn != 0 {
 		t.Errorf("Expected QueuedBytesIn = 0, got %d", result.QueuedBytesIn)
 	}
 	if result.QueuedBytesOut != 0 {
 		t.Errorf("Expected QueuedBytesOut = 0, got %d", result.QueuedBytesOut)
 	}
-	// Test Rate fields
 	if result.RateIn != 74 {
 		t.Errorf("Expected RateIn = 74, got %d", result.RateIn)
 	}

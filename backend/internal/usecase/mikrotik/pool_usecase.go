@@ -13,14 +13,14 @@ import (
 // PoolUseCase handles pool business logic
 type PoolUseCase struct {
 	routerRepo  repository.RouterRepository
-	mikrotikSvc *mikrotik.Client
+	mikrotikSvc *mikrotik.Manager
 	log         *zap.Logger
 }
 
 // NewPoolUseCase creates a new pool use case
 func NewPoolUseCase(
 	routerRepo repository.RouterRepository,
-	mikrotikSvc *mikrotik.Client,
+	mikrotikSvc *mikrotik.Manager,
 	log *zap.Logger,
 ) *PoolUseCase {
 	if log == nil {
@@ -40,10 +40,15 @@ func (uc *PoolUseCase) GetAddressPools(ctx context.Context, routerID uint) ([]st
 		return nil, err
 	}
 
+	c, err := connectRouter(ctx, uc.mikrotikSvc, router)
+	if err != nil {
+		return nil, fmt.Errorf("router %q not connected: %w", router.Name, err)
+	}
+
 	poolCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	pools, err := uc.mikrotikSvc.GetAddressPools(poolCtx, router)
+	pools, err := c.GetAddressPools(poolCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get address pools from MikroTik: %w", err)
 	}
