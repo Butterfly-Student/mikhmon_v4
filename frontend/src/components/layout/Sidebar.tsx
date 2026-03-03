@@ -11,6 +11,8 @@ import {
   X,
   ChevronRight,
   ChevronDown,
+  Cable,
+  FileText,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAuthStore } from '../../stores/authStore'
@@ -21,8 +23,10 @@ import { useState } from 'react'
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, color: 'from-primary-500 to-indigo-600' },
   { name: 'Hotspot', href: '/hotspot', icon: Wifi, color: 'from-cyan-500 to-blue-600' },
+  { name: 'PPPoE', href: '/pppoe', icon: Cable, color: 'from-violet-500 to-purple-600' },
   { name: 'Vouchers', href: '/vouchers', icon: Ticket, color: 'from-secondary-500 to-pink-600' },
   { name: 'Reports', href: '/reports', icon: BarChart3, color: 'from-success-500 to-teal-600' },
+  { name: 'Logs', href: '/logs', icon: FileText, color: 'from-slate-500 to-gray-600' },
   { name: 'Routers', href: '/routers', icon: Router, color: 'from-warning-500 to-orange-600' },
   { name: 'Settings', href: '/settings', icon: Settings, color: 'from-gray-500 to-gray-600' },
 ]
@@ -102,6 +106,7 @@ export function Sidebar() {
               </NavLink>
             )
           })}
+
         </nav>
 
         {/* Router Switcher */}

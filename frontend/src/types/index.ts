@@ -181,11 +181,62 @@ export interface RouterBoardInfo {
 
 /** Log entry dari /log/print */
 export interface LogEntry {
+  '.id'?: string;
   id?: string;
   time?: string;
   topics?: string;
   message?: string;
 }
+
+/** Log entry dengan sequence ID dari WebSocket */
+export interface LogEntryWithSeq {
+  seq: number;
+  time_ms: number;
+  entry: LogEntry;
+}
+
+/** Metadata untuk init message */
+export interface LogMetaInit {
+  count: number;
+  topics: string;
+  maxSize: number;
+  routerID: number;
+}
+
+/** Metadata untuk update message */
+export interface LogMetaUpdate {
+  batchSize: number;
+  totalSeq: number;
+}
+
+/** WebSocket message type: init */
+export interface LogMessageInit {
+  type: 'init';
+  data: LogEntryWithSeq[];
+  meta: LogMetaInit;
+}
+
+/** WebSocket message type: update */
+export interface LogMessageUpdate {
+  type: 'update';
+  data: LogEntryWithSeq[];
+  meta: LogMetaUpdate;
+}
+
+/** WebSocket message type: error */
+export interface LogMessageError {
+  type: 'error';
+  message: string;
+}
+
+/** WebSocket message type: status */
+export interface LogMessageStatus {
+  type: 'status';
+  status: string;
+}
+
+/** Union type untuk semua log message dari WebSocket */
+export type LogMessage = LogMessageInit | LogMessageUpdate | LogMessageError | LogMessageStatus;
 
 /** Network interface dari /interface/print */
 export interface NetworkInterface {
@@ -253,6 +304,63 @@ export interface SystemInfo {
   model?: string;
   version: string;
 }
+
+// PPP Types
+export interface PPPSecret {
+  id: string;
+  name: string;
+  password?: string;
+  profile?: string;
+  service?: string;
+  disabled: boolean;
+  callerID?: string;
+  localAddress?: string;
+  remoteAddress?: string;
+  routes?: string;
+  comment?: string;
+  limitBytesIn?: number;
+  limitBytesOut?: number;
+  lastLoggedOut?: string;
+  lastCallerID?: string;
+  lastDisconnectReason?: string;
+}
+
+export interface PPPProfile {
+  id: string;
+  name: string;
+  localAddress?: string;
+  remoteAddress?: string;
+  dnsServer?: string;
+  sessionTimeout?: string;
+  idleTimeout?: string;
+  onlyOne?: boolean;
+  comment?: string;
+  rateLimit?: string;
+  parentQueue?: string;
+  queueType?: string;
+  useCompression?: boolean;
+  useEncryption?: boolean;
+}
+
+export interface PPPActive {
+  id: string;
+  name: string;
+  service?: string;
+  callerID?: string;
+  address?: string;
+  uptime?: string;
+  sessionID?: string;
+  encoding?: string;
+  bytesIn?: number;
+  bytesOut?: number;
+  packetsIn?: number;
+  packetsOut?: number;
+  limitBytesIn?: number;
+  limitBytesOut?: number;
+}
+
+// PPPInactive is a PPP Secret that is not currently online
+export type PPPInactive = PPPSecret;
 
 // Report Types
 export interface SalesReport {

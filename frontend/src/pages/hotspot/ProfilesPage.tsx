@@ -4,29 +4,17 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import {
-  Plus,
-  Edit2,
-  Trash2,
-  Users,
-  Gauge,
-  Clock,
-  DollarSign,
-  Lock,
-  Server,
-  AlertTriangle,
-  Activity,
-  RefreshCw,
-  ShieldCheck,
-} from 'lucide-react'
+import { Plus, Users, AlertTriangle, Activity, RefreshCw, ShieldCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-import { Card, Button, Input, Badge, Modal, Select } from '../../components/ui'
+import { Card, Button, Modal } from '../../components/ui'
 import { hotspotApi } from '../../api/hotspot'
 import { useRouterStore } from '../../stores/routerStore'
+import { toggleApiDebug } from '../../api/axios'
+import { ProfileCard } from './components/ProfileCard'
+import { ProfileForm } from './components/ProfileForm'
 import type { UserProfile } from '../../types'
 import { Link } from 'react-router-dom'
-import { toggleApiDebug } from '../../api/axios'
 
 const profileSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -42,20 +30,7 @@ const profileSchema = z.object({
   lockServer: z.string().default('Disable'),
 })
 
-type ProfileForm = z.infer<typeof profileSchema>
-
-const expireModes = [
-  { value: '0', label: 'None' },
-  { value: 'rem', label: 'Remove' },
-  { value: 'ntf', label: 'Notice' },
-  { value: 'remc', label: 'Remove & Record' },
-  { value: 'ntfc', label: 'Notice & Record' },
-]
-
-const lockOptions = [
-  { value: 'Disable', label: 'Disable' },
-  { value: 'Enable', label: 'Enable' },
-]
+type ProfileFormType = z.infer<typeof profileSchema>
 
 export function ProfilesPage() {
   const queryClient = useQueryClient()
@@ -90,7 +65,6 @@ export function ProfilesPage() {
     retry: 2,
   })
 
-  // Show error toast if there's a connection error
   if (profilesError && !isLoading) {
     const errorMsg = profilesError instanceof Error ? profilesError.message : 'Failed to load profiles'
     if (errorMsg.includes('connection') || errorMsg.includes('Network Error') || errorMsg.includes('timeout')) {
@@ -99,7 +73,7 @@ export function ProfilesPage() {
   }
 
   const createMutation = useMutation({
-    mutationFn: (data: ProfileForm) => hotspotApi.createProfile(routerId, data),
+    mutationFn: (data: ProfileFormType) => hotspotApi.createProfile(routerId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profiles', routerId] })
       toast.success('Profile created successfully')
@@ -109,7 +83,7 @@ export function ProfilesPage() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: ProfileForm }) =>
+    mutationFn: ({ id, data }: { id: string; data: ProfileFormType }) =>
       hotspotApi.updateProfile(routerId, id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profiles', routerId] })
@@ -159,10 +133,9 @@ export function ProfilesPage() {
 
   const expireMode = watch('expireMode')
 
-  const onSubmit = (data: ProfileForm) => {
-    const payload: ProfileForm = {
+  const onSubmit = (data: any) => {
+    const payload = {
       ...data,
-      // Match legacy behavior in post_add_userprofile.php
       name: data.name.trim().replace(/\s+/g, '-'),
       validity: (data.validity || '').trim().toLowerCase(),
       price: Number.isFinite(data.price) ? data.price : 0,
@@ -198,25 +171,9 @@ export function ProfilesPage() {
       })
     } else {
       setEditingProfile(null)
-      reset({
-        sharedUsers: 1,
-        expireMode: '0',
-        lockUser: 'Disable',
-        lockServer: 'Disable',
-      })
+      reset({ sharedUsers: 1, expireMode: '0', lockUser: 'Disable', lockServer: 'Disable' })
     }
     setIsModalOpen(true)
-  }
-
-  const getExpireModeBadge = (mode?: string) => {
-    const variants: Record<string, any> = {
-      '0': 'default',
-      rem: 'danger',
-      ntf: 'warning',
-      remc: 'danger',
-      ntfc: 'warning',
-    }
-    return variants[mode || '0'] || 'default'
   }
 
   if (!selectedRouter) {
@@ -249,9 +206,7 @@ export function ProfilesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">User Profiles</h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            Manage hotspot user profiles and pricing
-          </p>
+          <p className="text-gray-500 dark:text-gray-400">Manage hotspot user profiles and pricing</p>
           {selectedRouter && (
             <p className="text-xs text-gray-400 mt-1">
               Router: {selectedRouter.name} (ID: {selectedRouter.id})
@@ -268,12 +223,7 @@ export function ProfilesPage() {
           >
             Set Expire Monitor
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => toggleApiDebug()}
-            title="Toggle API Debug Logging"
-          >
+          <Button variant="ghost" size="sm" onClick={() => toggleApiDebug()} title="Toggle API Debug Logging">
             <Activity className="w-4 h-4" />
           </Button>
           <Button onClick={() => openModal()} leftIcon={<Plus className="w-4 h-4" />}>
@@ -295,19 +245,11 @@ export function ProfilesPage() {
                 {profilesError instanceof Error ? profilesError.message : 'An unknown error occurred'}
               </p>
               <div className="mt-3 flex gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => refetch()}
-                >
+                <Button variant="secondary" size="sm" onClick={() => refetch()}>
                   <RefreshCw className="w-4 h-4 mr-1" />
                   Retry
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => toggleApiDebug(true)}
-                >
+                <Button variant="ghost" size="sm" onClick={() => toggleApiDebug(true)}>
                   <Activity className="w-4 h-4 mr-1" />
                   Enable Debug
                 </Button>
@@ -336,92 +278,12 @@ export function ProfilesPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {profiles?.map((profile) => (
-            <Card key={profile.id} hover>
-              <Card.Body>
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-lg text-gray-900 dark:text-white">
-                      {profile.name}
-                    </h3>
-                    <Badge variant={getExpireModeBadge(profile.expireMode)} className="mt-1">
-                      {profile.expireMode === '0' ? 'No Expiry' : profile.expireMode?.toUpperCase()}
-                    </Badge>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openModal(profile)}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        if (confirm('Are you sure?')) {
-                          deleteMutation.mutate(profile.id)
-                        }
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4 text-danger-500" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-sm">
-                    <Users className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-600 dark:text-gray-300">
-                      {profile.sharedUsers} shared users
-                    </span>
-                  </div>
-
-                  {profile.rateLimit && (
-                    <div className="flex items-center gap-3 text-sm">
-                      <Gauge className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-600 dark:text-gray-300">{profile.rateLimit}</span>
-                    </div>
-                  )}
-
-                  {profile.validity && (
-                    <div className="flex items-center gap-3 text-sm">
-                      <Clock className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-600 dark:text-gray-300">{profile.validity}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3 text-sm">
-                    <DollarSign className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-600 dark:text-gray-300">
-                      Rp {profile.price?.toLocaleString('id-ID')}
-                      {profile.sellingPrice > profile.price && (
-                        <span className="text-success-600 ml-1">
-                          → Rp {profile.sellingPrice?.toLocaleString('id-ID')}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-
-                  {(profile.lockUser === 'Enable' || profile.lockServer === 'Enable') && (
-                    <div className="flex items-center gap-2 pt-2">
-                      {profile.lockUser === 'Enable' && (
-                        <Badge variant="info" size="sm">
-                          <Lock className="w-3 h-3 mr-1" />
-                          MAC Lock
-                        </Badge>
-                      )}
-                      {profile.lockServer === 'Enable' && (
-                        <Badge variant="warning" size="sm">
-                          <Server className="w-3 h-3 mr-1" />
-                          Server Lock
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Card.Body>
-            </Card>
+            <ProfileCard
+              key={profile.id}
+              profile={profile}
+              onEdit={openModal}
+              onDelete={(id) => deleteMutation.mutate(id)}
+            />
           ))}
         </div>
       )}
@@ -446,84 +308,14 @@ export function ProfilesPage() {
           </div>
         }
       >
-        <form className="space-y-6">
-          {/* General Settings */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">General</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label="Name" {...register('name')} error={errors.name?.message} />
-              <Input
-                label="Shared Users"
-                type="number"
-                {...register('sharedUsers', { valueAsNumber: true })}
-              />
-              <Input label="Rate Limit" {...register('rateLimit')} placeholder="e.g. 1M/1M" />
-              <Select
-                label="Address Pool"
-                options={[
-                  { value: 'none', label: 'none' },
-                  ...((addressPools || []).map((p) => ({ value: p, label: p }))),
-                ]}
-                {...register('addressPool')}
-              />
-              <Select
-                label="Parent Queue"
-                options={[
-                  { value: 'none', label: 'none' },
-                  ...((parentQueues || []).map((q) => ({ value: q, label: q }))),
-                ]}
-                {...register('parentQueue')}
-              />
-            </div>
-          </div>
-
-          {/* Expiration Settings */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Expiration</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select
-                label="Expire Mode"
-                options={expireModes}
-                {...register('expireMode')}
-              />
-              {expireMode !== '0' && (
-                <Input
-                  label="Validity"
-                  {...register('validity')}
-                  placeholder="e.g. 30d, 12h"
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Pricing */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Pricing</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Price"
-                type="number"
-                {...register('price', { valueAsNumber: true })}
-              />
-              <Input
-                label="Selling Price"
-                type="number"
-                {...register('sellingPrice', { valueAsNumber: true })}
-              />
-            </div>
-          </div>
-
-          {/* Lock Settings */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Lock Settings</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select label="Lock User (MAC)" options={lockOptions} {...register('lockUser')} />
-              <Select label="Lock Server" options={lockOptions} {...register('lockServer')} />
-            </div>
-          </div>
-        </form>
+        <ProfileForm
+          register={register}
+          errors={errors}
+          expireMode={expireMode ?? '0'}
+          addressPools={addressPools}
+          parentQueues={parentQueues}
+        />
       </Modal>
     </motion.div>
   )
 }
-

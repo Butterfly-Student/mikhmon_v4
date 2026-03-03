@@ -63,18 +63,31 @@ func (m *Manager) Get(name string) (*Client, error) {
 
 // GetOrConnect returns the existing Client for name, or lazily creates and
 // connects a new one using cfg. Thread-safe via double-checked locking.
+// If the cached client is disconnected (reconnecting), it will re-register
+// a new connection.
 func (m *Manager) GetOrConnect(ctx context.Context, name string, cfg Config) (*Client, error) {
 	m.mu.RLock()
 	c, ok := m.clients[name]
 	m.mu.RUnlock()
-	if ok {
+	if ok && c.IsConnected() {
 		return c, nil
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	
+	// Double-check after acquiring lock
 	if c, ok = m.clients[name]; ok {
-		return c, nil
+		if c.IsConnected() {
+			return c, nil
+		}
+		// Client exists but disconnected - close and remove it
+		m.logger.Warn("cached client disconnected, removing and reconnecting",
+			zap.String("name", name),
+			zap.String("host", cfg.Host),
+		)
+		c.Close()
+		delete(m.clients, name)
 	}
 
 	c = NewClient(cfg, m.logger.With(zap.String("router", name)))

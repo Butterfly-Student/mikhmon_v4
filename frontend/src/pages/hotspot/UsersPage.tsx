@@ -1,21 +1,21 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion } from 'framer-motion'
-import {
-  Edit2, Trash2, RefreshCw, Eye, EyeOff, Printer, Ticket, UserPlus, AlertTriangle, Activity,
-} from 'lucide-react'
+import { Eye, EyeOff, Edit2, Trash2, UserPlus, AlertTriangle, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
 import toast from 'react-hot-toast'
 import type { ColumnDef } from '@tanstack/react-table'
 
-import { Card, Button, Input, Badge, Modal, Select, DataTable } from '../../components/ui'
+import { Card, Button, Badge, Modal, DataTable } from '../../components/ui'
 import { hotspotApi } from '../../api/hotspot'
 import { useRouterStore } from '../../stores/routerStore'
+import { UserActionsBar } from './components/UserActionsBar'
+import { UserForm } from './components/UserForm'
 import type { HotspotUser } from '../../types'
 import { Link } from 'react-router-dom'
-import { toggleApiDebug } from '../../api/axios'
 
 const userSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -28,7 +28,14 @@ const userSchema = z.object({
   comment: z.string().optional(),
 })
 
-type UserForm = z.infer<typeof userSchema>
+type UserFormType = z.infer<typeof userSchema>
+
+const formatBytes = (bytes: number) => {
+  if (!bytes) return '0 B'
+  const k = 1024, sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
 
 export function UsersPage() {
   const queryClient = useQueryClient()
@@ -38,7 +45,6 @@ export function UsersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<HotspotUser | null>(null)
   const [showPassword, setShowPassword] = useState<Record<string, boolean>>({})
-  const [showPrintModal, setShowPrintModal] = useState(false)
 
   const { data: users, isLoading, error: usersError, refetch } = useQuery({
     queryKey: ['users', routerId],
@@ -55,13 +61,13 @@ export function UsersPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (data: UserForm) => hotspotApi.createUser(routerId, data),
+    mutationFn: (data: UserFormType) => hotspotApi.createUser(routerId, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users', routerId] }); toast.success('User created'); setIsModalOpen(false) },
     onError: (e: any) => toast.error(e.message),
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UserForm }) => hotspotApi.updateUser(routerId, id, data),
+    mutationFn: ({ id, data }: { id: string; data: UserFormType }) => hotspotApi.updateUser(routerId, id, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users', routerId] }); toast.success('User updated'); setIsModalOpen(false); setEditingUser(null) },
     onError: (e: any) => toast.error(e.message),
   })
@@ -72,9 +78,11 @@ export function UsersPage() {
     onError: (e: any) => toast.error(e.message),
   })
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<UserForm>({ resolver: zodResolver(userSchema) })
+  const { register, handleSubmit, reset, formState: { errors } } = useForm({
+    resolver: zodResolver(userSchema),
+  })
 
-  const onSubmit = (data: UserForm) => {
+  const onSubmit = (data: UserFormType) => {
     if (editingUser) { updateMutation.mutate({ id: editingUser.id, data }) }
     else { createMutation.mutate(data) }
   }
@@ -92,20 +100,6 @@ export function UsersPage() {
   const togglePassword = (userId: string) =>
     setShowPassword(prev => ({ ...prev, [userId]: !prev[userId] }))
 
-  const formatBytes = (bytes: number) => {
-    if (!bytes) return '0 B'
-    const k = 1024, sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
-
-  const handlePrint = (size: 'small' | 'default') => {
-    localStorage.setItem('printUsers', JSON.stringify(users || []))
-    localStorage.setItem('printSize', size)
-    window.open('/vouchers/print', '_blank')
-  }
-
-  // --- TanStack Table columns ---
   const columns = useMemo<ColumnDef<HotspotUser, any>[]>(() => [
     {
       accessorKey: 'name',
@@ -220,44 +214,11 @@ export function UsersPage() {
             {selectedRouter.name} &mdash; {users?.length || 0} users registered
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => refetch()}
-            className="p-2 rounded-xl bg-gray-100 dark:bg-dark-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-          <Button variant="ghost" size="sm" onClick={() => toggleApiDebug()} title="Toggle Debug">
-            <Activity className="w-4 h-4" />
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => window.location.href = '/vouchers/generate'}>
-            <Ticket className="w-4 h-4 mr-1" /> Generate
-          </Button>
-          {/* Print button */}
-          <div className="relative">
-            <button
-              onClick={() => setShowPrintModal(!showPrintModal)}
-              disabled={!users?.length}
-              className="px-3 py-1.5 rounded-xl text-sm font-medium bg-success-50 dark:bg-success-900/20 text-success-600 dark:text-success-400 hover:bg-success-100 dark:hover:bg-success-900/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-            >
-              <Printer className="w-4 h-4" /> Print
-            </button>
-            {showPrintModal && users?.length && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowPrintModal(false)} />
-                <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-gray-200 dark:border-dark-700 z-20 py-1 overflow-hidden">
-                  {['small', 'default'].map((s) => (
-                    <button key={s} onClick={() => { handlePrint(s as any); setShowPrintModal(false) }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-700 flex items-center gap-2">
-                      <Printer className="w-4 h-4" /> Print {s === 'small' ? 'Small' : 'Default'}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-          <Button onClick={() => openModal()} leftIcon={<UserPlus className="w-4 h-4" />}>Add</Button>
-        </div>
+        <UserActionsBar
+          users={users || []}
+          onRefresh={() => refetch()}
+          onAddUser={() => openModal()}
+        />
       </div>
 
       {/* Error Banner */}
@@ -292,27 +253,21 @@ export function UsersPage() {
       </Card>
 
       {/* Add/Edit Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingUser ? 'Edit User' : 'Add User'} footer={
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-          <Button onClick={handleSubmit(onSubmit)} isLoading={createMutation.isPending || updateMutation.isPending}>
-            {editingUser ? 'Update' : 'Create'}
-          </Button>
-        </div>
-      }>
-        <form className="space-y-4">
-          <Input label="Name" {...register('name')} error={errors.name?.message} />
-          <Input label="Password" type="password" {...register('password')} />
-          <Select label="Profile" options={profiles?.map(p => ({ value: p.name, label: p.name })) || []} {...register('profile')} />
-          <Input label="MAC Address" placeholder="AA:BB:CC:DD:EE:FF" {...register('macAddress')} />
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Time Limit" placeholder="1h, 30m, 1d" {...register('timeLimit')} />
-            <Input label="Data Limit" placeholder="100M, 1G" {...register('dataLimit')} />
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingUser ? 'Edit User' : 'Add User'}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleSubmit(onSubmit)} isLoading={createMutation.isPending || updateMutation.isPending}>
+              {editingUser ? 'Update' : 'Create'}
+            </Button>
           </div>
-          <Input label="Comment" {...register('comment')} />
-        </form>
+        }
+      >
+        <UserForm register={register} errors={errors} profiles={profiles} />
       </Modal>
     </motion.div>
   )
 }
-

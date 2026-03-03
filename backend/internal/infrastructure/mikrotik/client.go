@@ -110,6 +110,14 @@ func (c *Client) IsAsync() bool {
 	return conn != nil && conn.IsAsync()
 }
 
+// IsConnected reports whether the client has an active connection.
+// This checks if the underlying connection is not nil and the client is not closed.
+func (c *Client) IsConnected() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.conn != nil && !c.closed
+}
+
 // dial opens a single RouterOS connection (dial + login).
 func (c *Client) dial(ctx context.Context) (*routeros.Client, error) {
 	addr := fmt.Sprintf("%s:%d", c.config.Host, c.config.Port)

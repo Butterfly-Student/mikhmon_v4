@@ -8,7 +8,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { AppLayout } from './components/layout/AppLayout'
 
 // Hotspot Pages
-import { HotspotPage, UsersPage, ProfilesPage, ActivePage, HostsPage } from './pages/hotspot'
+import { HotspotPage, UsersPage, ProfilesPage, ActivePage, HostsPage, InactivePage } from './pages/hotspot'
 
 // Voucher Pages
 import { GeneratePage, PrintPage } from './pages/vouchers'
@@ -21,6 +21,12 @@ import { RoutersPage } from './pages/routers/RoutersPage'
 
 // Settings Page
 import { SettingsPage } from './pages/settings/SettingsPage'
+
+// PPPoE Pages
+import { PPPoEPage } from './pages/pppoe'
+
+// Logs Pages
+import { LogsPage } from './pages/logs'
 
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -87,7 +93,14 @@ function App() {
           <Route path="hotspot/users" element={<UsersPage />} />
           <Route path="hotspot/profiles" element={<ProfilesPage />} />
           <Route path="hotspot/active" element={<ActivePage />} />
+          <Route path="hotspot/inactive" element={<InactivePage />} />
           <Route path="hotspot/hosts" element={<HostsPage />} />
+
+          {/* PPPoE Routes */}
+          <Route path="pppoe" element={<PPPoEPage />} />
+
+          {/* Logs Routes */}
+          <Route path="logs" element={<LogsPage />} />
 
           {/* Voucher Routes */}
           <Route path="vouchers" element={<Navigate to="/vouchers/generate" replace />} />

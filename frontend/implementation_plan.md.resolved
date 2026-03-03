@@ -1,0 +1,184 @@
+# Mikhmon Frontend — PPPoE, Logs & WebSocket Real-time
+
+Add PPPoE management pages, system/hotspot/PPP log pages, and upgrade all
+monitoring panels (hotspot active, hotspot inactive, PPP active, PPP inactive)
+to fetch data in real-time via WebSocket instead of HTTP polling.
+
+## Proposed Changes
+
+---
+
+### Types & API Layer
+
+#### [MODIFY] [types/index.ts](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/types/index.ts)
+- Add [PPPSecret](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/backend/internal/domain/dto/ppp.go#5-23), [PPPProfile](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/backend/internal/domain/dto/ppp.go#26-58), [PPPActive](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/backend/internal/domain/dto/ppp.go#61-77), `PPPInactive` interfaces
+- `PPPInactive` is equivalent to [PPPSecret](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/backend/internal/domain/dto/ppp.go#5-23) (secrets not currently online)
+
+#### [NEW] [api/ppp.ts](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/api/ppp.ts)
+CRUD untuk PPP secrets dan profiles, serta action disconnect (bukan data fetch — Active/Inactive data diambil via WebSocket):
+- `pppApi.getSecrets(routerId)` → `GET /api/v1/mikrotik/:id/ppp/secrets`
+- `pppApi.createSecret(routerId, data)` → `POST`
+- `pppApi.updateSecret(routerId, id, data)` → `PUT`
+- `pppApi.deleteSecret(routerId, id)` → `DELETE`
+- `pppApi.enableSecret` / `disableSecret` → `PATCH enable/disable`
+- `pppApi.getProfiles(routerId)` → profiles CRUD (get, create, update, delete)
+- `pppApi.disconnectActive(routerId, id)` → `DELETE /ppp/active/:id` *(action kick, bukan data fetch)*
+
+#### [NEW] [api/logs.ts](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/api/logs.ts)
+- `logsApi.getSystemLogs(routerId)` → `GET /mikrotik/:id/logs`
+- `logsApi.getHotspotLogs(routerId)` → `GET /mikrotik/:id/logs/hotspot`
+- `logsApi.getPPPLogs(routerId)` → `GET /mikrotik/:id/logs/ppp`
+
+---
+
+### WebSocket Hooks
+
+All hooks follow the same pattern as [useResourceWebSocket.ts](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/hooks/useResourceWebSocket.ts):
+auto-connect on mount, reconnect on close, cleanup on unmount.
+
+WS URL pattern: `ws://{host}/api/v1/ws/mikrotik/monitor/{endpoint}/{routerId}?key={key}`
+
+#### [NEW] [hooks/useHotspotActiveWS.ts](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/hooks/useHotspotActiveWS.ts)
+- Endpoint: `hotspot-active`
+- Returns `{ users: HotspotActive[], isConnected, lastUpdate }`
+
+#### [NEW] [hooks/useHotspotInactiveWS.ts](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/hooks/useHotspotInactiveWS.ts)
+- Endpoint: `hotspot-inactive`
+- Returns `{ users: HotspotUser[], isConnected, lastUpdate }`
+
+#### [NEW] [hooks/usePPPActiveWS.ts](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/hooks/usePPPActiveWS.ts)
+- Endpoint: `ppp-active`
+- Returns `{ connections: PPPActive[], isConnected, lastUpdate }`
+
+#### [NEW] [hooks/usePPPInactiveWS.ts](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/hooks/usePPPInactiveWS.ts)
+- Endpoint: `ppp-inactive`
+- Returns `{ connections: PPPInactive[], isConnected, lastUpdate }`
+
+#### [NEW] [hooks/useLogMonitorWS.ts](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/hooks/useLogMonitorWS.ts)
+- Generic hook accepting endpoint type: `'logs' | 'hotspot-logs' | 'ppp-logs'`
+- Returns `{ entries: LogEntry[], isConnected }`
+- Appends new log entries (up to 500 max), not replaces
+
+---
+
+### Hotspot Updates
+
+#### [MODIFY] [pages/hotspot/ActivePage.tsx](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/hotspot/ActivePage.tsx)
+- Replace `useQuery` with `refetchInterval` → use `useHotspotActiveWS` hook
+- Show live connection badge with animated dot
+- Add "Kick" button calling `hotspotApi.deleteActiveSession`
+
+#### [NEW] [pages/hotspot/InactivePage.tsx](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/hotspot/InactivePage.tsx)
+- Use `useHotspotInactiveWS` hook
+- Display: user name, profile, MAC, last logged out, uptime, comment
+- Show live connection badge
+
+#### [MODIFY] [pages/hotspot/index.ts](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/hotspot/index.ts)
+- Export `InactivePage`
+
+#### [MODIFY] [pages/hotspot/HotspotPage.tsx](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/hotspot/HotspotPage.tsx)
+- Add `inactive` tab to the tab list
+- Replace [ActiveTab](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/hotspot/HotspotPage.tsx#795-897) (HTTP) inside [HotspotPage](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/hotspot/HotspotPage.tsx#66-174) with `useHotspotActiveWS`
+- Add `InactiveTab` inside [HotspotPage](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/hotspot/HotspotPage.tsx#66-174) using `useHotspotInactiveWS`
+
+---
+
+### PPPoE Pages
+
+#### [NEW] [pages/pppoe/PPPoEPage.tsx](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/pppoe/PPPoEPage.tsx)
+A single tab-container page with 4 tabs:
+1. **Secrets** — CRUD table (name, profile, service, disabled toggle, edit/delete)
+2. **Profiles** — CRUD table (name, rate limit, local/remote address, session timeout)
+3. **Active** — Real-time via `usePPPActiveWS` (name, IP, uptime, traffic, kick button)
+4. **Inactive** — Real-time via `usePPPInactiveWS` (name, profile, last logged out)
+
+Design follows same pattern as [HotspotPage.tsx](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/hotspot/HotspotPage.tsx): unified card, tab bar as header, sub-components per tab, modals for create/edit.
+
+#### [NEW] [pages/pppoe/index.ts](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/pppoe/index.ts)
+- Export `PPPoEPage`
+
+---
+
+### Logs Pages
+
+#### [NEW] [pages/logs/LogsPage.tsx](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/logs/LogsPage.tsx)
+- System-wide MikroTik logs via `useLogMonitorWS('logs')`
+- Table with: time, topics (badges), message
+- Auto-scroll to bottom on new entries
+- Pause/resume button, clear button, max 500 entries
+
+#### [NEW] [pages/logs/HotspotLogsPage.tsx](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/logs/HotspotLogsPage.tsx)
+- Same design as LogsPage but uses `useLogMonitorWS('hotspot-logs')`
+
+#### [NEW] [pages/logs/PPPLogsPage.tsx](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/logs/PPPLogsPage.tsx)
+- Same design as LogsPage but uses `useLogMonitorWS('ppp-logs')`
+
+#### [NEW] [pages/logs/index.ts](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/pages/logs/index.ts)
+- Export all log pages
+
+---
+
+### Navigation & Routing
+
+#### [MODIFY] [App.tsx](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/App.tsx)
+Add routes:
+```
+/hotspot/inactive       → InactivePage
+/pppoe                  → PPPoEPage
+/logs                   → LogsPage
+/logs/hotspot           → HotspotLogsPage
+/logs/ppp               → PPPLogsPage
+```
+
+#### [MODIFY] [Sidebar.tsx](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/components/layout/Sidebar.tsx)
+Add nav items:
+- **PPPoE** (icon: [Network](file:///home/butterfly-student/programing/Mikrotik/gomikhmon/frontend/src/types/index.ts#191-209) or `Cable`) → `/pppoe`
+- **Logs** expandable group:
+  - System Logs → `/logs`
+  - Hotspot Logs → `/logs/hotspot`
+  - PPP Logs → `/logs/ppp`
+
+---
+
+## Verification Plan
+
+### Automated Tests
+No existing tests found in the frontend (`src/` has no `*.test.*` files). TypeScript compilation is the primary automated check:
+
+```bash
+cd /home/butterfly-student/programing/Mikrotik/gomikhmon/frontend
+npm run build
+```
+
+This will catch all TypeScript type errors and import issues.
+
+### Manual Verification (Browser)
+
+Start the dev server:
+```bash
+cd /home/butterfly-student/programing/Mikrotik/gomikhmon/frontend
+npm run dev
+```
+
+Open `http://localhost:5173` in a browser and verify:
+
+1. **PPPoE page** — Navigate to `/pppoe`:
+   - Should show 4 tabs: Secrets, Profiles, Active, Inactive
+   - Secrets tab: table loads, Add button opens modal, edit/delete buttons work
+   - Active tab: shows live badge and `isConnected` status
+
+2. **Hotspot InactivePage** — Navigate to `/hotspot/inactive`:
+   - Should show users from `hotspot-inactive` WS
+   - Live badge visible
+
+3. **Hotspot ActivePage** — Navigate to `/hotspot/active`:
+   - Badge shows "Live • WebSocket" instead of previous "auto-refreshes every 5s"
+   - Data updates when WS receives new messages
+
+4. **Logs** — Navigate to `/logs`, `/logs/hotspot`, `/logs/ppp`:
+   - Each shows a scrolling log table
+   - Live badge and Pause/Resume button visible
+
+5. **Sidebar** — PPPoE and Logs entries visible and navigate correctly
+
+> **Note:** WebSocket data requires the backend to be running with a connected MikroTik router. If backend is not available, pages should still render with empty data and a "Disconnected" / reconnecting badge.

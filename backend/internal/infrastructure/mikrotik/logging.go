@@ -84,7 +84,7 @@ func (c *Client) EnablePPPLogging(ctx context.Context) error {
 		"/system/logging/add",
 		"=action=disk",
 		"=prefix=ppp->",
-		"=topics=ppp,pppoe,info",
+		"=topics=pppoe",
 	)
 	return err
 }
@@ -172,5 +172,5 @@ func (c *Client) ListenPPPLogs(
 	ctx context.Context,
 	resultChan chan<- *dto.LogEntry,
 ) (func() error, error) {
-	return c.ListenLogs(ctx, "ppp,pppoe,info", resultChan)
+	return c.ListenLogs(ctx, "pppoe", resultChan)
 }

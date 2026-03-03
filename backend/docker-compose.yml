@@ -1,6 +1,9 @@
+version: "3.8"
+
 services:
   # api:
   #   build: .
+  #   container_name: gomikhmon-api
   #   ports:
   #     - "8080:8080"
   #   environment:
@@ -16,13 +19,17 @@ services:
   #     - JWT_SECRET=your-jwt-secret-key-change-in-production
   #     - JWT_EXPIRY=24h
   #   depends_on:
-  #     - postgres
-  #     - redis
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
   #   networks:
   #     - mikhmon
+  #   restart: unless-stopped
 
   postgres:
-    image: postgres:15-alpine
+    image: docker.io/library/postgres:15-alpine
+    container_name: gomikhmon-postgres
     environment:
       - POSTGRES_USER=mikhmon
       - POSTGRES_PASSWORD=mikhmon
@@ -33,16 +40,32 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - mikhmon
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mikhmon -d mikhmon"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   redis:
-    image: redis:7-alpine
+    image: docker.io/library/redis:7-alpine
+    container_name: gomikhmon-redis
     ports:
       - "6379:6379"
     networks:
       - mikhmon
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
 volumes:
   postgres_data:
+    driver: local
 
 networks:
   mikhmon:
